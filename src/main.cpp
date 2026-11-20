@@ -5,7 +5,7 @@ int main() {
     //define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    double appVersion = 0.2;
+    double appVersion = 0.2.1;
     bool running = true;
     int choice;
 
@@ -19,7 +19,8 @@ int main() {
 
         std::cout << "1. Show local network information\n";
         std::cout << "2. Network tools\n";
-        std::cout << "3. About NetScope\n";
+        std::cout << "3. Settings\n";
+        std::cout << "4. About NetScope\n";
         std::cout << "0. Exit\n";
     
         //get user input
@@ -41,7 +42,7 @@ int main() {
             // Skip the rest of this loop iteration
             continue;
         }
-        
+
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
         //define choices
@@ -55,11 +56,15 @@ int main() {
                 break;
 
             case 3:
+                std::cout << "\nSettings are not available yet.\n";
+                break;
+
+            case 4:
                 std::cout << "\nNetScope - A C++ networking toolkit.\n";
                 break;
 
             case 0:
-                std::cout << "\nGoodbye!\n";
+                std::cout << "\nExiting NetScope v0.2. Goodbye!\n";
                 running = false;
                 break;
 
@@ -67,8 +72,7 @@ int main() {
                 std::cout << "\nInvalid option! Please try again.\n";
                 break;
         }
-
-
+       
     }
     return 0;
 }
