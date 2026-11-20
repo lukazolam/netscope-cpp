@@ -28,6 +28,10 @@ int main() {
         if (!(std::cin >> choice)) {
             std::cout << "\nInvalid input! Please enter a number.\n";
 
+            if (std::cin.eof()) {
+                std::cout << "\nInput closed. Exiting NetScope.\n";
+                break;
+            }
             // Reset the input stream's error state
             std::cin.clear();
 
