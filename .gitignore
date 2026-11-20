@@ -42,6 +42,7 @@
 [Bb]uild/
 [Bb]uild-*/
 cmake-build-*/
+out/
 
 # CMake generated files
 CMakeFiles/
@@ -66,3 +67,16 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# IDE and OS files
+.vs/
+.DS_Store
+Thumbs.db
+
+# Compiled files
+*.exe
+*.obj
+*.o
+*.dll
+*.so
+*.dylib
