@@ -1,9 +1,16 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(NetScope VERSION 0.1.0 LANGUAGES CXX)
+project(NetScope VERSION 0.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(netscope src/main.cpp)
+add_executable(netscope
+    src/main.cpp
+    src/network.cpp
+)
+
+target_include_directories(netscope PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
