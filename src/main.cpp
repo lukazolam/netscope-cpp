@@ -42,6 +42,8 @@ int main() {
             continue;
         }
         
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
         //define choices
         switch (choice) {
             case 1:
