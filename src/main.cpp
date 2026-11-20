@@ -2,13 +2,15 @@
 #include <string>
 
 int main() {
+    //define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    double appVersion = 0.1;
+    double appVersion = 0.2;
     bool running = true;
     int choice;
 
     while (running) {
+        //display main menu
         std::cout << appName << " v" << appVersion << '\n';
         std::cout << appDescription << '\n';
         std::cout << "\n============================\n";
@@ -20,9 +22,23 @@ int main() {
         std::cout << "3. About NetScope\n";
         std::cout << "0. Exit\n";
     
+        //get user input
         std::cout << "\nSelect an option: ";
-        std::cin >> choice;
 
+        if (!(std::cin >> choice)) {
+            std::cout << "\nInvalid input! Please enter a number.\n";
+
+            // Reset the input stream's error state
+            std::cin.clear();
+
+            // Discard the remaining input on the current line
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            // Skip the rest of this loop iteration
+            continue;
+        }
+        
+        //define choices
         switch (choice) {
             case 1:
                 std::cout << "\nLocal network information is not implemented yet.\n";
