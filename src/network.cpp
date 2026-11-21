@@ -15,6 +15,8 @@
 #include <atomic>
 #include <algorithm>
 #include <iostream>
+#include <functional>
+#include <mutex>
 
 bool validateIPv4(const std::string& ip) {
     std::stringstream ss(ip);
@@ -222,15 +224,16 @@ PortStatus scanTCPPort(const std::string& ip, int port) {
     return PortStatus::Error;
 }
 
+
 std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
-    const std::vector<int>& ports
+    const std::vector<int>& ports,
+    const std::function<void(std::size_t, std::size_t)>& onProgress
 ) {
     if (ports.empty()) {
         return {};
     }
 
-    // Maximum number of concurrent workers
     const unsigned int maxThreads = 32;
 
     const unsigned int threadCount = std::min(
@@ -238,45 +241,45 @@ std::vector<PortScanResult> scanTCPPorts(
         static_cast<unsigned int>(ports.size())
     );
 
-    // Allocate result storage before starting threads
     std::vector<PortScanResult> results(
         ports.size(),
         {0, PortStatus::Error}
     );
 
-    // Shared counter for the next port to scan
     std::atomic<std::size_t> nextIndex{0};
+    std::atomic<std::size_t> completed{0};
+
+    std::mutex progressMutex;
 
     std::vector<std::thread> workers;
     workers.reserve(threadCount);
 
-    // Create worker threads
     for (unsigned int i = 0; i < threadCount; i++) {
         workers.emplace_back([&]() {
-
             while (true) {
-                // Claim the next available port
                 std::size_t index = nextIndex.fetch_add(1);
 
-                // Stop when all ports have been assigned
                 if (index >= ports.size()) {
                     break;
                 }
 
                 int port = ports[index];
 
-                // Perform the TCP scan
-                std::cout << "\nScanning Port " << port;
                 PortStatus status = scanTCPPort(ip, port);
-
-                // Save the result
                 results[index] = {port, status};
-            }
 
+                // Update completed port count
+                std::size_t finished = completed.fetch_add(1) + 1;
+
+                // Report progress safely
+                if (onProgress) {
+                    std::lock_guard<std::mutex> lock(progressMutex);
+                    onProgress(finished, ports.size());
+                }
+            }
         });
     }
 
-    // Wait for every worker to finish
     for (std::thread& worker : workers) {
         worker.join();
     }

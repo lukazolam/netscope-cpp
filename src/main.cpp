@@ -4,16 +4,63 @@
 #include <sstream>
 #include <vector>
 #include <chrono>
+#include <iomanip>
+#include <algorithm>
 
 #include "network.h"
+
+
+void displayProgress(std::size_t completed, std::size_t total) {
+    const int barWidth = 30;
+
+    double progress = total == 0
+        ? 1.0
+        : static_cast<double>(completed) / total;
+
+    int filled = static_cast<int>(barWidth * progress);
+
+    std::cout << "\r[";
+
+    for (int i = 0; i < barWidth; i++) {
+        if (i < filled) {
+            std::cout << "#";
+        } else {
+            std::cout << "-";
+        }
+    }
+
+    std::cout << "] "
+              << std::setw(3) << static_cast<int>(progress * 100)
+              << "% (" << completed << "/" << total << ")"
+              << std::flush;
+}
+
 
 void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
     std::cout << "\nScanning " << ip << "...\n";
 
     auto startTime = std::chrono::steady_clock::now();
 
-    // Run the actual scan
-    std::vector<PortScanResult> results = scanTCPPorts(ip, ports);
+    int lastPercentage = -1;
+
+    std::vector<PortScanResult> results = scanTCPPorts(
+        ip,
+        ports,
+        [&](std::size_t completed, std::size_t total) {
+            int percentage = static_cast<int>(
+                (completed * 100) / total
+            );
+
+            if (percentage <= lastPercentage) {
+                return;
+            }
+
+            lastPercentage = percentage;
+            displayProgress(completed, total);
+        }
+    );
+
+    std::cout << '\n';
 
     auto endTime = std::chrono::steady_clock::now();
 
@@ -58,7 +105,6 @@ void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
     std::cout << "Errors:        " << errorCount << '\n';
     std::cout << "Duration:      " << duration.count() << " ms\n";
 }
-
 
 void showSubnetCalculator() {
     std::string ip;
@@ -381,7 +427,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.5.2";
+    std::string appVersion = "0.5.3";
 
     bool running = true;
     int choice;

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 bool validateIPv4(const std::string& ip);
 
@@ -37,5 +38,6 @@ struct PortScanResult {
 
 std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
-    const std::vector<int>& ports
+    const std::vector<int>& ports,
+    const std::function<void(std::size_t, std::size_t)>& onProgress = {}
 );
