@@ -464,33 +464,51 @@ for (DiscoveredHost& host : discovered) {
     }
 }
 
+// Resolve hostnames of discovered devices
+std::cout << "Resolving DNS hostnames...\n";
+
+int hostnameCount = 0;
+
+for (DiscoveredHost& host : discovered) {
+    host.hostname = resolveHostname(host.ipAddress);
+
+    if (!host.hostname.empty()) {
+        hostnameCount++;
+    } else {
+        host.hostname = "Unknown";
+    }
+}
+
 // Move to the next line after the progress bar
 std::cout << '\n';
 
 
     // Display discovered devices
 
-    std::cout << "\n========== DISCOVERED DEVICES ==========\n";
+        std::cout << "\n========== DISCOVERED DEVICES ==========\n";
 
-    std::cout << std::left
-            << std::setw(18) << "IP ADDRESS"
-            << std::setw(22) << "MAC ADDRESS"
-            << "STATUS\n";
-
-    std::cout << std::string(52, '-') << '\n';
-
-    for (const DiscoveredHost& host : discovered) {
         std::cout << std::left
-                << std::setw(18) << host.ipAddress
-                << std::setw(22) << host.macAddress
-                << "Responding\n";
-    }
+                << std::setw(18) << "IP ADDRESS"
+                << std::setw(22) << "MAC ADDRESS"
+                << std::setw(36) << "HOSTNAME"
+                << "STATUS\n";
+
+        std::cout << std::string(88, '-') << '\n';
+
+        for (const DiscoveredHost& host : discovered) {
+            std::cout << std::left
+                    << std::setw(18) << host.ipAddress
+                    << std::setw(22) << host.macAddress
+                    << std::setw(36) << host.hostname
+                    << "Responding\n";
+        }
 
 
 std::cout << "\n========== RESULTS ==========\n";
 std::cout << "Hosts scanned:     " << hosts.size() << '\n';
 std::cout << "Hosts discovered:  " << discovered.size() << '\n';
 std::cout << "MAC addresses found: " << macCount << '\n';
+std::cout << "Hostnames resolved:  " << hostnameCount << '\n';
 
 }
 
@@ -554,7 +572,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.3.1";
+    std::string appVersion = "0.6.4";
     bool running = true;
     int choice;
 

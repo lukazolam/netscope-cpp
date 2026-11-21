@@ -13,4 +13,5 @@ Implemented Functions:
     - Network Discovery
         - /24 - /32
         - Mac Address included
+        - Reverse DNS Lookup
 

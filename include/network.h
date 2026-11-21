@@ -59,6 +59,8 @@ std::vector<DiscoveredHost> discoverHosts(
     const std::function<void(std::size_t, std::size_t)>& onProgress = {}
 );
 
+std::string resolveHostname(const std::string& ip);
+
 std::string getMACAddress(const std::string& ip);
 
 //w11 functions

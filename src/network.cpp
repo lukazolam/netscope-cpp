@@ -31,6 +31,7 @@
     #include <sys/select.h>
     #include <sys/socket.h>
     #include <unistd.h>
+    #include <netdb.h>
 #endif
 
 
@@ -601,3 +602,52 @@ std::string getMACAddress(const std::string& ip) {
     return "";
 }
 
+std::string resolveHostname(const std::string& ip) {
+    // Validate the IPv4 address
+    if (!validateIPv4(ip)) {
+        return "";
+    }
+
+    // Construct an IPv4 socket address
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = 0;
+
+#ifdef _WIN32
+    int converted = InetPtonA(
+        AF_INET,
+        ip.c_str(),
+        &address.sin_addr
+    );
+#else
+    int converted = inet_pton(
+        AF_INET,
+        ip.c_str(),
+        &address.sin_addr
+    );
+#endif
+
+    if (converted != 1) {
+        return "";
+    }
+
+    // Buffer to store the resolved hostname
+    char hostname[NI_MAXHOST]{};
+
+    // Perform reverse DNS lookup
+    int result = getnameinfo(
+        reinterpret_cast<const sockaddr*>(&address),
+        sizeof(address),
+        hostname,
+        sizeof(hostname),
+        nullptr,
+        0,
+        NI_NAMEREQD
+    );
+
+    if (result != 0) {
+        return "";
+    }
+
+    return std::string(hostname);
+}
