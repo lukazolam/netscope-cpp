@@ -6,4 +6,7 @@ Implemented Functions:
 - Network Tools
     - Validate IPv4 address
     - Subnet calculator
-    - TCP port scanner (single port)
+    - TCP port scanner
+        - Single Port
+        - Port Range (max. 10000 Ports)
+        - Common Ports
