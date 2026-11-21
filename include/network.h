@@ -60,3 +60,7 @@ std::vector<DiscoveredHost> discoverHosts(
 );
 
 std::string getMACAddress(const std::string& ip);
+
+//w11 functions
+bool initializeNetworking();
+void cleanupNetworking();

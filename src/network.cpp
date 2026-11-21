@@ -4,12 +4,6 @@
 #include <sstream>
 #include <string>
 #include <cstdint>
-#include <arpa/inet.h>
-#include <cerrno>
-#include <fcntl.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <unistd.h>
 #include <vector>
 #include <thread>
 #include <atomic>
@@ -19,6 +13,73 @@
 #include <mutex>
 #include <cstdio>
 #include <regex>
+#include <cerrno>
+#include <cstdint>
+#include <iomanip>
+
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <iphlpapi.h>
+#else
+    #include <arpa/inet.h>
+    #include <fcntl.h>
+    #include <sys/select.h>
+    #include <sys/socket.h>
+    #include <unistd.h>
+#endif
+
+
+bool initializeNetworking() {
+#ifdef _WIN32
+    WSADATA data{};
+
+    return WSAStartup(MAKEWORD(2, 2), &data) == 0;
+#else
+    return true;
+#endif
+}
+
+void cleanupNetworking() {
+#ifdef _WIN32
+    WSACleanup();
+#endif
+}
+
+
+#ifdef _WIN32
+using NetSocket = SOCKET;
+#else
+using NetSocket = int;
+#endif
+
+void closeNetworkSocket(NetSocket sock) {
+#ifdef _WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+}
+
+bool setNonBlocking(NetSocket sock) {
+#ifdef _WIN32
+    u_long mode = 1;
+    return ioctlsocket(sock, FIONBIO, &mode) == 0;
+#else
+    int flags = fcntl(sock, F_GETFL, 0);
+
+    return flags != -1 &&
+           fcntl(sock, F_SETFL, flags | O_NONBLOCK) != -1;
+#endif
+}
+
+int getSocketError() {
+#ifdef _WIN32
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+}
 
 bool validateIPv4(const std::string& ip) {
     std::stringstream ss(ip);
@@ -152,62 +213,79 @@ std::vector<std::string> generateHostIPs(
     return hosts;
 }
 
-
 PortStatus scanTCPPort(const std::string& ip, int port) {
-    // Reject invalid port numbers and IP addresses
     if (!validateIPv4(ip) || port < 1 || port > 65535) {
         return PortStatus::Error;
     }
 
-    // Create a TCP socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    NetSocket sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
+#ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        return PortStatus::Error;
+    }
+#else
     if (sock < 0) {
         return PortStatus::Error;
     }
+#endif
 
-    // Configure the destination
     sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_port = htons(static_cast<uint16_t>(port));
 
-    if (inet_pton(AF_INET, ip.c_str(), &address.sin_addr) != 1) {
-        close(sock);
+#ifdef _WIN32
+    int converted = InetPtonA(
+        AF_INET, ip.c_str(), &address.sin_addr
+    );
+#else
+    int converted = inet_pton(
+        AF_INET, ip.c_str(), &address.sin_addr
+    );
+#endif
+
+    if (converted != 1) {
+        closeNetworkSocket(sock);
         return PortStatus::Error;
     }
 
-    // Configure the socket as nonblocking
-    int flags = fcntl(sock, F_GETFL, 0);
-
-    if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
-        close(sock);
+    if (!setNonBlocking(sock)) {
+        closeNetworkSocket(sock);
         return PortStatus::Error;
     }
 
-    // Attempt the connection
     int result = connect(
         sock,
         reinterpret_cast<sockaddr*>(&address),
         sizeof(address)
     );
 
-    // Connection succeeded immediately
     if (result == 0) {
-        close(sock);
+        closeNetworkSocket(sock);
         return PortStatus::Open;
     }
 
-    // EINPROGRESS means the connection is still being established
-    if (errno != EINPROGRESS) {
-        int error = errno;
-        close(sock);
+    int error = getSocketError();
 
-        return error == ECONNREFUSED
+#ifdef _WIN32
+    bool inProgress =
+        error == WSAEWOULDBLOCK ||
+        error == WSAEINPROGRESS;
+
+    bool refused = error == WSAECONNREFUSED;
+#else
+    bool inProgress = error == EINPROGRESS;
+    bool refused = error == ECONNREFUSED;
+#endif
+
+    if (!inProgress) {
+        closeNetworkSocket(sock);
+
+        return refused
             ? PortStatus::Closed
             : PortStatus::Error;
     }
 
-    // Wait for the connection, with a two-second timeout
     fd_set writeSet;
     FD_ZERO(&writeSet);
     FD_SET(sock, &writeSet);
@@ -215,34 +293,62 @@ PortStatus scanTCPPort(const std::string& ip, int port) {
     timeval timeout{};
     timeout.tv_sec = 2;
 
-    result = select(sock + 1, nullptr, &writeSet, nullptr, &timeout);
+#ifdef _WIN32
+    result = select(
+        0, nullptr, &writeSet, nullptr, &timeout
+    );
+#else
+    result = select(
+        sock + 1, nullptr, &writeSet, nullptr, &timeout
+    );
+#endif
 
     if (result == 0) {
-        close(sock);
+        closeNetworkSocket(sock);
         return PortStatus::Timeout;
     }
 
     if (result < 0) {
-        close(sock);
+        closeNetworkSocket(sock);
         return PortStatus::Error;
     }
 
-    // Check whether the connection succeeded
     int socketError = 0;
-    socklen_t errorLength = sizeof(socketError);
 
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR,
-                   &socketError, &errorLength) == -1) {
-        close(sock);
+#ifdef _WIN32
+    int errorLength = sizeof(socketError);
+    char* errorBuffer = reinterpret_cast<char*>(&socketError);
+#else
+    socklen_t errorLength = sizeof(socketError);
+    void* errorBuffer = &socketError;
+#endif
+
+    if (getsockopt(
+            sock,
+            SOL_SOCKET,
+            SO_ERROR,
+            errorBuffer,
+            &errorLength
+        ) != 0) {
+        closeNetworkSocket(sock);
         return PortStatus::Error;
     }
 
-    close(sock);
+    closeNetworkSocket(sock);
 
     if (socketError == 0) {
         return PortStatus::Open;
     }
 
+#ifdef _WIN32
+    if (socketError == WSAECONNREFUSED) {
+        return PortStatus::Closed;
+    }
+
+    if (socketError == WSAETIMEDOUT) {
+        return PortStatus::Timeout;
+    }
+#else
     if (socketError == ECONNREFUSED) {
         return PortStatus::Closed;
     }
@@ -250,10 +356,10 @@ PortStatus scanTCPPort(const std::string& ip, int port) {
     if (socketError == ETIMEDOUT) {
         return PortStatus::Timeout;
     }
+#endif
 
     return PortStatus::Error;
 }
-
 
 std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
@@ -415,6 +521,46 @@ std::string getMACAddress(const std::string& ip) {
     if (!validateIPv4(ip)) {
         return "";
     }
+
+#ifdef _WIN32
+    in_addr address{};
+
+    if (InetPtonA(AF_INET, ip.c_str(), &address) != 1) {
+        return "";
+    }
+
+    ULONG macBuffer[2]{};
+    ULONG macLength = 6;
+
+    DWORD result = SendARP(
+        address.s_addr,
+        0,
+        macBuffer,
+        &macLength
+    );
+
+    if (result != NO_ERROR || macLength != 6) {
+        return "";
+    }
+
+    const unsigned char* bytes =
+        reinterpret_cast<const unsigned char*>(macBuffer);
+
+    std::ostringstream mac;
+
+    mac << std::hex << std::setfill('0');
+
+    for (ULONG i = 0; i < macLength; i++) {
+        if (i > 0) {
+            mac << ':';
+        }
+
+        mac << std::setw(2)
+            << static_cast<unsigned int>(bytes[i]);
+    }
+
+    return mac.str();
+#endif
 
 #ifdef __APPLE__
     // Query the macOS ARP table

@@ -554,11 +554,15 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.3";
-
+    std::string appVersion = "0.6.3.1";
     bool running = true;
     int choice;
 
+    if (!initializeNetworking()) {
+    std::cerr << "[ERROR] Unable to initialize networking.\n";
+    return 1;
+}
+    
     while (running) {
         // Display main menu
         std::cout << "\n" << appName << " v" << appVersion << '\n';
@@ -636,5 +640,6 @@ int main() {
         }
     }
 
+    cleanupNetworking();
     return 0;
 }
