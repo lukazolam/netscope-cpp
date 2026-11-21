@@ -449,21 +449,48 @@ std::vector<DiscoveredHost> discovered = discoverHosts(
     }
 );
 
+// Resolve MAC addresses of discovered hosts
+std::cout << "\nLooking up MAC addresses...\n";
+
+int macCount = 0;
+
+for (DiscoveredHost& host : discovered) {
+    host.macAddress = getMACAddress(host.ipAddress);
+
+    if (!host.macAddress.empty()) {
+        macCount++;
+    } else {
+        host.macAddress = "Unknown";
+    }
+}
+
 // Move to the next line after the progress bar
 std::cout << '\n';
 
 
     // Display discovered devices
-    std::cout << "\nIP ADDRESS\tSTATUS\n";
-    std::cout << "--------------------------------\n";
+
+    std::cout << "\n========== DISCOVERED DEVICES ==========\n";
+
+    std::cout << std::left
+            << std::setw(18) << "IP ADDRESS"
+            << std::setw(22) << "MAC ADDRESS"
+            << "STATUS\n";
+
+    std::cout << std::string(52, '-') << '\n';
 
     for (const DiscoveredHost& host : discovered) {
-        std::cout << host.ipAddress << "\tResponding\n";
+        std::cout << std::left
+                << std::setw(18) << host.ipAddress
+                << std::setw(22) << host.macAddress
+                << "Responding\n";
     }
+
 
 std::cout << "\n========== RESULTS ==========\n";
 std::cout << "Hosts scanned:     " << hosts.size() << '\n';
 std::cout << "Hosts discovered:  " << discovered.size() << '\n';
+std::cout << "MAC addresses found: " << macCount << '\n';
 
 }
 
@@ -527,7 +554,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.2.1";
+    std::string appVersion = "0.6.3";
 
     bool running = true;
     int choice;

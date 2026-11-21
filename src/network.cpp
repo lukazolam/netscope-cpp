@@ -17,6 +17,8 @@
 #include <iostream>
 #include <functional>
 #include <mutex>
+#include <cstdio>
+#include <regex>
 
 bool validateIPv4(const std::string& ip) {
     std::stringstream ss(ip);
@@ -406,5 +408,46 @@ std::vector<DiscoveredHost> discoverHosts(
     }
 
     return discovered;
+}
+
+std::string getMACAddress(const std::string& ip) {
+    // Only accept validated IPv4 addresses
+    if (!validateIPv4(ip)) {
+        return "";
+    }
+
+#ifdef __APPLE__
+    // Query the macOS ARP table
+    std::string command = "/usr/sbin/arp -n " + ip + " 2>/dev/null";
+
+    FILE* pipe = popen(command.c_str(), "r");
+
+    if (pipe == nullptr) {
+        return "";
+    }
+
+    char buffer[512];
+    std::string output;
+
+    // Read the command output
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        output += buffer;
+    }
+
+    pclose(pipe);
+
+    // Extract a six-byte hexadecimal MAC address
+    std::regex macPattern(
+        R"(\bat ((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})(?:\s|$))"
+    );
+
+    std::smatch match;
+
+    if (std::regex_search(output, match, macPattern)) {
+        return match[1].str();
+    }
+#endif
+
+    return "";
 }
 
