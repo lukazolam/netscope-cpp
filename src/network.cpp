@@ -4,6 +4,12 @@
 #include <sstream>
 #include <string>
 #include <cstdint>
+#include <arpa/inet.h>
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 bool validateIPv4(const std::string& ip) {
     std::stringstream ss(ip);
@@ -107,5 +113,107 @@ SubnetInfo calculateSubnet(const std::string& ip, int prefix) {
 
 
     return result;
+}
+
+
+PortStatus scanTCPPort(const std::string& ip, int port) {
+    // Reject invalid port numbers and IP addresses
+    if (!validateIPv4(ip) || port < 1 || port > 65535) {
+        return PortStatus::Error;
+    }
+
+    // Create a TCP socket
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (sock < 0) {
+        return PortStatus::Error;
+    }
+
+    // Configure the destination
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(static_cast<uint16_t>(port));
+
+    if (inet_pton(AF_INET, ip.c_str(), &address.sin_addr) != 1) {
+        close(sock);
+        return PortStatus::Error;
+    }
+
+    // Configure the socket as nonblocking
+    int flags = fcntl(sock, F_GETFL, 0);
+
+    if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+        close(sock);
+        return PortStatus::Error;
+    }
+
+    // Attempt the connection
+    int result = connect(
+        sock,
+        reinterpret_cast<sockaddr*>(&address),
+        sizeof(address)
+    );
+
+    // Connection succeeded immediately
+    if (result == 0) {
+        close(sock);
+        return PortStatus::Open;
+    }
+
+    // EINPROGRESS means the connection is still being established
+    if (errno != EINPROGRESS) {
+        int error = errno;
+        close(sock);
+
+        return error == ECONNREFUSED
+            ? PortStatus::Closed
+            : PortStatus::Error;
+    }
+
+    // Wait for the connection, with a two-second timeout
+    fd_set writeSet;
+    FD_ZERO(&writeSet);
+    FD_SET(sock, &writeSet);
+
+    timeval timeout{};
+    timeout.tv_sec = 2;
+
+    result = select(sock + 1, nullptr, &writeSet, nullptr, &timeout);
+
+    if (result == 0) {
+        close(sock);
+        return PortStatus::Timeout;
+    }
+
+    if (result < 0) {
+        close(sock);
+        return PortStatus::Error;
+    }
+
+    // Check whether the connection succeeded
+    int socketError = 0;
+    socklen_t errorLength = sizeof(socketError);
+
+    if (getsockopt(sock, SOL_SOCKET, SO_ERROR,
+                   &socketError, &errorLength) == -1) {
+        close(sock);
+        return PortStatus::Error;
+    }
+
+    close(sock);
+
+    if (socketError == 0) {
+        return PortStatus::Open;
+    }
+
+    if (socketError == ECONNREFUSED) {
+        return PortStatus::Closed;
+    }
+
+    if (socketError == ETIMEDOUT) {
+        return PortStatus::Timeout;
+    }
+
+    return PortStatus::Error;
 }
 

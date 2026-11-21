@@ -18,3 +18,13 @@ struct SubnetInfo {
 };
 
 SubnetInfo calculateSubnet(const std::string& ip, int prefix);
+
+
+enum class PortStatus {
+    Open,
+    Closed,
+    Timeout,
+    Error
+};
+
+PortStatus scanTCPPort(const std::string& ip, int port);

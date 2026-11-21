@@ -62,6 +62,81 @@ void showSubnetCalculator() {
 }
 
 
+void showTCPScanner() {
+    std::string ip;
+    std::string portInput;
+
+    std::cout << "\n========== TCP PORT SCANNER ==========\n";
+
+    // Get the target IPv4 address
+    std::cout << "Target IPv4: ";
+
+    if (!std::getline(std::cin, ip)) {
+        return;
+    }
+
+    if (!validateIPv4(ip)) {
+        std::cout << "\n[ERROR] Invalid IPv4 address.\n";
+        return;
+    }
+
+    // Get the target TCP port
+    std::cout << "TCP Port (1-65535): ";
+
+    if (!std::getline(std::cin, portInput)) {
+        return;
+    }
+
+    // Reject empty or non-numeric port input
+    if (portInput.empty() ||
+        portInput.find_first_not_of("0123456789") != std::string::npos) {
+        std::cout << "\n[ERROR] Invalid port number.\n";
+        return;
+    }
+
+    int port;
+
+    try {
+        port = std::stoi(portInput);
+    }
+    catch (const std::exception&) {
+        std::cout << "\n[ERROR] Invalid port number.\n";
+        return;
+    }
+
+    if (port < 1 || port > 65535) {
+        std::cout << "\n[ERROR] Port must be between 1 and 65535.\n";
+        return;
+    }
+
+    // Start the scan
+    std::cout << "\nScanning " << ip << ":" << port << "...\n";
+
+    PortStatus result = scanTCPPort(ip, port);
+
+    // Display the result
+    switch (result) {
+        case PortStatus::Open:
+            std::cout << "[OPEN] TCP port " << port
+                      << " is accepting connections.\n";
+            break;
+
+        case PortStatus::Closed:
+            std::cout << "[CLOSED] TCP port " << port
+                      << " refused the connection.\n";
+            break;
+
+        case PortStatus::Timeout:
+            std::cout << "[TIMEOUT] No connection response received.\n";
+            break;
+
+        case PortStatus::Error:
+            std::cout << "[ERROR] Unable to complete the scan.\n";
+            break;
+    }
+}
+
+
 void showNetworkTools() {
     bool running = true;
 
@@ -69,6 +144,7 @@ void showNetworkTools() {
         std::cout << "\n========== NETWORK TOOLS ==========\n";
         std::cout << "1. Validate IPv4 Address\n";
         std::cout << "2. Calculate Subnet\n";
+        std::cout << "3. TCP Port Scanner\n";
         std::cout << "0. Back to Main Menu\n";
 
         std::string input;
@@ -101,6 +177,9 @@ void showNetworkTools() {
         else if (input == "2") {
             showSubnetCalculator();
         }
+        else if (input == "3") {
+            showTCPScanner();
+        }
         else if (input == "0") {
             running = false;
         }
@@ -114,7 +193,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.4";
+    std::string appVersion = "0.5.1";
 
     bool running = true;
     int choice;
