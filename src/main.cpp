@@ -6,44 +6,115 @@
 #include "network.h"
 
 
-// Network tools function
-void showNetworkTools() {
+void showSubnetCalculator() {
     std::string ip;
+    std::string prefixInput;
 
-    std::cout << "\n========== NETWORK TOOLS ==========\n";
-    std::cout << "Enter an IPv4 address (or 'back' to return): " << std::flush;
+    std::cout << "\n========== SUBNET CALCULATOR ==========\n";
 
-    // Read input and check if the input stream is still available
+    // Get IPv4 address
+    std::cout << "IPv4 Address: ";
+
     if (!std::getline(std::cin, ip)) {
         return;
     }
 
-    // Handle empty input
-    if (ip.empty()) {
-        std::cout << "\n[ERROR] No IPv4 address entered.\n";
+    if (!validateIPv4(ip)) {
+        std::cout << "\n[ERROR] Invalid IPv4 address.\n";
         return;
     }
 
-    // Return to main menu
-    if (ip == "back") {
+    // Get CIDR prefix
+    std::cout << "CIDR Prefix (0-32): ";
+
+    if (!std::getline(std::cin, prefixInput)) {
         return;
     }
 
-    // Validate entered IPv4 address
-    if (validateIPv4(ip)) {
-        std::cout << "\n[OK] " << ip << " is a valid IPv4 address.\n";
+    int prefix;
+
+    // Convert prefix string into integer
+    try {
+        std::size_t processed = 0;
+        prefix = std::stoi(prefixInput, &processed);
+
+        if (processed != prefixInput.length() || prefix < 0 || prefix > 32) {
+            std::cout << "\n[ERROR] CIDR prefix must be between 0 and 32.\n";
+            return;
+        }
     }
-    else {
-        std::cout << "\n[ERROR] " << ip << " is not a valid IPv4 address.\n";
+    catch (const std::exception&) {
+        std::cout << "\n[ERROR] Invalid CIDR prefix.\n";
+        return;
     }
+
+    // Calculate subnet information
+    SubnetInfo subnet = calculateSubnet(ip, prefix);
+
+    // Display results
+    std::cout << "\n========== RESULTS ==========\n";
+    std::cout << "Network Address:    " << subnet.networkAddress << '\n';
+    std::cout << "Subnet Mask:        " << subnet.subnetMask << '\n';
+    std::cout << "Broadcast Address:  " << subnet.broadcastAddress << '\n';
+    std::cout << "First Usable IP:    " << subnet.firstHost << '\n';
+    std::cout << "Last Usable IP:     " << subnet.lastHost << '\n';
+    std::cout << "Usable Hosts:       " << subnet.usableHosts << '\n';
 }
 
+
+void showNetworkTools() {
+    bool running = true;
+
+    while (running) {
+        std::cout << "\n========== NETWORK TOOLS ==========\n";
+        std::cout << "1. Validate IPv4 Address\n";
+        std::cout << "2. Calculate Subnet\n";
+        std::cout << "0. Back to Main Menu\n";
+
+        std::string input;
+        std::cout << "\nSelect an option: ";
+
+        if (!std::getline(std::cin, input)) {
+            return;
+        }
+
+        if (input == "1") {
+            std::string ip;
+
+            std::cout << "\nEnter IPv4 Address: ";
+
+            if (!std::getline(std::cin, ip)) {
+                return;
+            }
+
+            if (ip.empty()) {
+                std::cout << "\n[ERROR] No IPv4 address entered.\n";
+                continue;
+            }
+
+            if (validateIPv4(ip)) {
+                std::cout << "\n[OK] Valid IPv4 address.\n";
+            } else {
+                std::cout << "\n[ERROR] Invalid IPv4 address.\n";
+            }
+        }
+        else if (input == "2") {
+            showSubnetCalculator();
+        }
+        else if (input == "0") {
+            running = false;
+        }
+        else {
+            std::cout << "\n[ERROR] Invalid option.\n";
+        }
+    }
+}
 
 int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.3.2";
+    std::string appVersion = "0.4";
 
     bool running = true;
     int choice;
