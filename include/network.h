@@ -46,3 +46,14 @@ std::vector<std::string> generateHostIPs(
     const std::string& ip,
     int prefix
 );
+
+struct DiscoveredHost {
+    std::string ipAddress;
+    bool responding;
+    std::string hostname;
+    std::string macAddress;
+};
+
+std::vector<DiscoveredHost> discoverHosts(
+    const std::vector<std::string>& addresses
+);

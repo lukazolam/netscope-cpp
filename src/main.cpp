@@ -412,18 +412,36 @@ void showNetworkDiscovery() {
         return;
     }
 
+   
     // Generate host addresses
     std::vector<std::string> hosts = generateHostIPs(ip, prefix);
+
+    // Get subnet information
     SubnetInfo subnet = calculateSubnet(ip, prefix);
 
-    std::cout << "\n========== GENERATED HOSTS ==========\n";
-    std::cout << "\n\nNetwork:\t" << ip << "/" << prefix;
-    std::cout << "\nSubnet Mask:\t" << subnet.subnetMask;
-    std::cout << "\nHosts generated: " << hosts.size() << "\n\n";
+    std::cout << "\n========== NETWORK DISCOVERY ==========\n";
+    std::cout << "Network: " << subnet.networkAddress
+            << "/" << prefix << '\n';
+    std::cout << "Subnet Mask: " << subnet.subnetMask << '\n';
+    std::cout << "Hosts to scan: " << hosts.size() << "\n\n";
 
-    for (const std::string& host : hosts) {
-        std::cout << host << '\n';
+    std::cout << "Discovering devices...\n";
+
+    // Scan the network
+    std::vector<DiscoveredHost> discovered = discoverHosts(hosts);
+
+    // Display discovered devices
+    std::cout << "\nIP ADDRESS\tSTATUS\n";
+    std::cout << "--------------------------------\n";
+
+    for (const DiscoveredHost& host : discovered) {
+        std::cout << host.ipAddress << "\tResponding\n";
     }
+
+std::cout << "\n========== RESULTS ==========\n";
+std::cout << "Hosts scanned:     " << hosts.size() << '\n';
+std::cout << "Hosts discovered:  " << discovered.size() << '\n';
+
 }
 
 void showNetworkTools() {
@@ -486,7 +504,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.1";
+    std::string appVersion = "0.6.2";
 
     bool running = true;
     int choice;

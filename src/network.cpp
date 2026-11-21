@@ -315,4 +315,81 @@ std::vector<PortScanResult> scanTCPPorts(
     return results;
 }
 
+bool isHostResponding(const std::string& ip) {
+    // Common TCP ports to probe
+    const std::vector<int> probePorts = {
+        22, 80, 443, 445, 3389, 8080
+    };
+
+    for (int port : probePorts) {
+        PortStatus status = scanTCPPort(ip, port);
+
+        if (status == PortStatus::Open ||
+            status == PortStatus::Closed) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::vector<DiscoveredHost> discoverHosts(
+    const std::vector<std::string>& addresses
+) {
+    if (addresses.empty()) {
+        return {};
+    }
+
+    const unsigned int maxThreads = 32;
+
+    const unsigned int threadCount = std::min(
+        maxThreads,
+        static_cast<unsigned int>(addresses.size())
+    );
+
+    std::vector<DiscoveredHost> results(addresses.size());
+
+    std::atomic<std::size_t> nextIndex{0};
+
+    std::vector<std::thread> workers;
+    workers.reserve(threadCount);
+
+    for (unsigned int i = 0; i < threadCount; i++) {
+        workers.emplace_back([&]() {
+            while (true) {
+                std::size_t index = nextIndex.fetch_add(1);
+
+                if (index >= addresses.size()) {
+                    break;
+                }
+
+                const std::string& ip = addresses[index];
+
+                bool responding = isHostResponding(ip);
+
+                results[index] = {
+                    ip,
+                    responding,
+                    "",
+                    ""
+                };
+            }
+        });
+    }
+
+    for (std::thread& worker : workers) {
+        worker.join();
+    }
+
+    // Keep only responding devices
+    std::vector<DiscoveredHost> discovered;
+
+    for (const DiscoveredHost& host : results) {
+        if (host.responding) {
+            discovered.push_back(host);
+        }
+    }
+
+    return discovered;
+}
 
