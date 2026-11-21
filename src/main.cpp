@@ -2,8 +2,60 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <vector>
+#include <chrono>
 
 #include "network.h"
+
+void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
+    std::cout << "\nScanning " << ip << "...\n";
+
+    auto startTime = std::chrono::steady_clock::now();
+
+    // Run the actual scan
+    std::vector<PortScanResult> results = scanTCPPorts(ip, ports);
+
+    auto endTime = std::chrono::steady_clock::now();
+
+    int openCount = 0;
+    int closedCount = 0;
+    int timeoutCount = 0;
+    int errorCount = 0;
+
+    // Process returned results
+    for (const PortScanResult& result : results) {
+        switch (result.status) {
+            case PortStatus::Open:
+                std::cout << result.port << "/tcp\tOPEN\n";
+                openCount++;
+                break;
+
+            case PortStatus::Closed:
+                closedCount++;
+                break;
+
+            case PortStatus::Timeout:
+                timeoutCount++;
+                break;
+
+            case PortStatus::Error:
+                errorCount++;
+                break;
+        }
+    }
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        endTime - startTime
+    );
+
+    std::cout << "\n========== SCAN RESULTS ==========\n";
+    std::cout << "Ports scanned: " << results.size() << '\n';
+    std::cout << "Open:          " << openCount << '\n';
+    std::cout << "Closed:        " << closedCount << '\n';
+    std::cout << "Timed out:     " << timeoutCount << '\n';
+    std::cout << "Errors:        " << errorCount << '\n';
+    std::cout << "Duration:      " << duration.count() << " ms\n";
+}
 
 
 void showSubnetCalculator() {
@@ -61,8 +113,7 @@ void showSubnetCalculator() {
     std::cout << "Usable Hosts:       " << subnet.usableHosts << '\n';
 }
 
-
-void showTCPScanner() {
+void showSinglePortScanner() {
     std::string ip;
     std::string portInput;
 
@@ -136,6 +187,141 @@ void showTCPScanner() {
     }
 }
 
+void showCommonPortScanner() {
+    std::string ip;
+
+    std::cout << "\n========== COMMON PORT SCANNER ==========\n";
+    std::cout << "Target IPv4: ";
+
+    if (!std::getline(std::cin, ip)) {
+        return;
+    }
+
+    if (!validateIPv4(ip)) {
+        std::cout << "\n[ERROR] Invalid IPv4 address.\n";
+        return;
+    }
+
+    std::vector<int> commonPorts = {
+        21, 22, 23, 25, 53,
+        80, 110, 143, 443, 445,
+        993, 995, 1433, 3306, 3389,
+        5432, 5900, 6379, 8080, 8443
+    };
+
+    displayPortScan(ip, commonPorts);
+}
+
+void showPortRangeScanner() {
+    std::string ip;
+    std::string startInput;
+    std::string endInput;
+
+    std::cout << "\n========== PORT RANGE SCANNER ==========\n";
+
+    // Get target IP
+    std::cout << "Target IPv4: ";
+    if (!std::getline(std::cin, ip)) {
+        return;
+    }
+
+    if (!validateIPv4(ip)) {
+        std::cout << "\n[ERROR] Invalid IPv4 address.\n";
+        return;
+    }
+
+    // Get starting port
+    std::cout << "Starting Port: ";
+    if (!std::getline(std::cin, startInput)) {
+        return;
+    }
+
+    // Get ending port
+    std::cout << "Ending Port: ";
+    if (!std::getline(std::cin, endInput)) {
+        return;
+    }
+
+    int startPort;
+    int endPort;
+
+    try {
+        std::size_t startProcessed = 0;
+        std::size_t endProcessed = 0;
+
+        startPort = std::stoi(startInput, &startProcessed);
+        endPort = std::stoi(endInput, &endProcessed);
+
+        // Reject invalid characters
+        if (startProcessed != startInput.length() ||
+            endProcessed != endInput.length()) {
+            std::cout << "\n[ERROR] Invalid port numbers.\n";
+            return;
+        }
+    }
+    catch (const std::exception&) {
+        std::cout << "\n[ERROR] Invalid port numbers.\n";
+        return;
+    }
+
+    // Validate the range
+    if (startPort < 1 || endPort > 65535 || startPort > endPort) {
+        std::cout << "\n[ERROR] Invalid port range.\n";
+        return;
+    }
+
+    if (endPort - startPort + 1 > 1000) {
+        std::cout << "\n[ERROR] Maximum range is 1000 ports.\n";
+        return;
+    }
+
+    // Generate port list
+    std::vector<int> ports;
+
+    for (int port = startPort; port <= endPort; port++) {
+        ports.push_back(port);
+    }
+
+    displayPortScan(ip, ports);
+}
+
+void showTCPScanner() {
+    bool running = true;
+
+    while (running) {
+        std::cout << "\n========== TCP PORT SCANNER ==========\n";
+        std::cout << "1. Scan Single Port\n";
+        std::cout << "2. Scan Port Range\n";
+        std::cout << "3. Scan Common Ports\n";
+        std::cout << "0. Back to Network Tools\n";
+
+        std::string input;
+        std::cout << "\nSelect an option: ";
+
+        if (!std::getline(std::cin, input)) {
+            return;
+        }
+
+        if (input == "1") {
+            showSinglePortScanner();
+        }
+        else if (input == "2") {
+            showPortRangeScanner();
+        }
+        else if (input == "3") {
+            showCommonPortScanner();
+        }
+        else if (input == "0") {
+            running = false;
+        }
+        else if (input.empty()) {
+            std::cout << "\n[ERROR] Please select an option.\n";
+        }
+        else {
+            std::cout << "\n[ERROR] Invalid option.\n";
+        }
+    }
+}
 
 void showNetworkTools() {
     bool running = true;
@@ -193,7 +379,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.5.1";
+    std::string appVersion = "0.5.2";
 
     bool running = true;
     int choice;
