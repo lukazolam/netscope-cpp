@@ -3,6 +3,7 @@
 
 #include <sstream>
 #include <string>
+#include <cstdint>
 
 bool validateIPv4(const std::string& ip) {
     std::stringstream ss(ip);
@@ -39,3 +40,26 @@ bool validateIPv4(const std::string& ip) {
 
     return true;
 }
+
+std::uint32_t ipToInteger(const std::string& ip) {
+    std::stringstream ss(ip);
+    std::string octet;
+
+    std::uint32_t result = 0;
+
+    while (std::getline(ss, octet, '.')) {
+        result = (result << 8) | std::stoul(octet);
+    }
+
+    return result;
+}
+
+SubnetInfo calculateSubnet(const std::string& ip, int prefix) {
+    SubnetInfo result{};
+
+    result.ipAddress = ip;
+    result.prefixLength = prefix;
+
+    return result;
+}
+
