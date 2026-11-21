@@ -35,7 +35,6 @@ void displayProgress(std::size_t completed, std::size_t total) {
               << std::flush;
 }
 
-
 void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
     std::cout << "\nScanning " << ip << "...\n";
 
@@ -75,7 +74,7 @@ void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
     for (const PortScanResult& result : results) {
         switch (result.status) {
             case PortStatus::Open:
-                std::cout << result.port << "/tcp\t\tOPEN\n";
+                std::cout << result.port << "/tcp\tOPEN\n";
                 openCount++;
                 break;
 
@@ -371,6 +370,62 @@ void showTCPScanner() {
     }
 }
 
+void showNetworkDiscovery() {
+    std::string ip;
+    std::string prefixInput;
+
+    std::cout << "\n========== NETWORK DISCOVERY ==========\n";
+
+    // Read network address
+    std::cout << "IPv4 Address: ";
+
+    if (!std::getline(std::cin, ip)) {
+        return;
+    }
+
+    if (!validateIPv4(ip)) {
+        std::cout << "\n[ERROR] Invalid IPv4 address.\n";
+        return;
+    }
+
+    // Read CIDR prefix
+    std::cout << "CIDR Prefix (24-32): ";
+
+    if (!std::getline(std::cin, prefixInput)) {
+        return;
+    }
+
+    int prefix;
+
+    try {
+        std::size_t processed = 0;
+        prefix = std::stoi(prefixInput, &processed);
+
+        if (processed != prefixInput.length() ||
+            prefix < 24 || prefix > 32) {
+            std::cout << "\n[ERROR] Prefix must be between 24 and 32.\n";
+            return;
+        }
+    }
+    catch (const std::exception&) {
+        std::cout << "\n[ERROR] Invalid CIDR prefix.\n";
+        return;
+    }
+
+    // Generate host addresses
+    std::vector<std::string> hosts = generateHostIPs(ip, prefix);
+    SubnetInfo subnet = calculateSubnet(ip, prefix);
+
+    std::cout << "\n========== GENERATED HOSTS ==========\n";
+    std::cout << "\n\nNetwork:\t" << ip << "/" << prefix;
+    std::cout << "\nSubnet Mask:\t" << subnet.subnetMask;
+    std::cout << "\nHosts generated: " << hosts.size() << "\n\n";
+
+    for (const std::string& host : hosts) {
+        std::cout << host << '\n';
+    }
+}
+
 void showNetworkTools() {
     bool running = true;
 
@@ -379,6 +434,7 @@ void showNetworkTools() {
         std::cout << "1. Validate IPv4 Address\n";
         std::cout << "2. Calculate Subnet\n";
         std::cout << "3. TCP Port Scanner\n";
+        std::cout << "4. Network Discovery\n";
         std::cout << "0. Back to Main Menu\n";
 
         std::string input;
@@ -414,6 +470,9 @@ void showNetworkTools() {
         else if (input == "3") {
             showTCPScanner();
         }
+        else if (input == "4") {
+            showNetworkDiscovery();
+        }
         else if (input == "0") {
             running = false;
         }
@@ -427,7 +486,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.5.3";
+    std::string appVersion = "0.6.1";
 
     bool running = true;
     int choice;

@@ -122,6 +122,34 @@ SubnetInfo calculateSubnet(const std::string& ip, int prefix) {
     return result;
 }
 
+std::vector<std::string> generateHostIPs(
+    const std::string& ip,
+    int prefix
+) {
+    std::vector<std::string> hosts;
+
+    // Validate input
+    if (!validateIPv4(ip) || prefix < 0 || prefix > 32) {
+        return hosts;
+    }
+
+    // Get existing subnet information
+    SubnetInfo subnet = calculateSubnet(ip, prefix);
+
+    // Convert first and last usable addresses to integers
+    std::uint32_t first = ipToInteger(subnet.firstHost);
+    std::uint32_t last = ipToInteger(subnet.lastHost);
+
+    // Generate each address in the usable range
+    for (std::uint64_t address = first; address <= last; address++) {
+        hosts.push_back(
+            integerToIP(static_cast<std::uint32_t>(address))
+        );
+    }
+
+    return hosts;
+}
+
 
 PortStatus scanTCPPort(const std::string& ip, int port) {
     // Reject invalid port numbers and IP addresses
