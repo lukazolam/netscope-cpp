@@ -55,5 +55,7 @@ struct DiscoveredHost {
 };
 
 std::vector<DiscoveredHost> discoverHosts(
-    const std::vector<std::string>& addresses
+    const std::vector<std::string>& addresses,
+    const std::function<void(std::size_t, std::size_t)>& onProgress = {}
 );
+

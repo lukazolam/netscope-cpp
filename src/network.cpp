@@ -334,7 +334,8 @@ bool isHostResponding(const std::string& ip) {
 }
 
 std::vector<DiscoveredHost> discoverHosts(
-    const std::vector<std::string>& addresses
+    const std::vector<std::string>& addresses,
+    const std::function<void(std::size_t, std::size_t)>& onProgress
 ) {
     if (addresses.empty()) {
         return {};
@@ -350,6 +351,8 @@ std::vector<DiscoveredHost> discoverHosts(
     std::vector<DiscoveredHost> results(addresses.size());
 
     std::atomic<std::size_t> nextIndex{0};
+    std::size_t completed = 0;
+    std::mutex progressMutex;
 
     std::vector<std::thread> workers;
     workers.reserve(threadCount);
@@ -373,6 +376,18 @@ std::vector<DiscoveredHost> discoverHosts(
                     "",
                     ""
                 };
+                
+                // Update discovery progress
+                {
+                    std::lock_guard<std::mutex> lock(progressMutex);
+
+                    completed++;
+
+                    if (onProgress) {
+                        onProgress(completed, addresses.size());
+                    }
+                }
+
             }
         });
     }

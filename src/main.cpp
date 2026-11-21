@@ -425,10 +425,33 @@ void showNetworkDiscovery() {
     std::cout << "Subnet Mask: " << subnet.subnetMask << '\n';
     std::cout << "Hosts to scan: " << hosts.size() << "\n\n";
 
-    std::cout << "Discovering devices...\n";
+    
+std::cout << "Discovering devices...\n";
 
-    // Scan the network
-    std::vector<DiscoveredHost> discovered = discoverHosts(hosts);
+// Keep track of the last displayed percentage
+int lastPercentage = -1;
+
+// Start discovery and receive progress updates
+std::vector<DiscoveredHost> discovered = discoverHosts(
+    hosts,
+    [&](std::size_t completed, std::size_t total) {
+        int percentage = static_cast<int>(
+            (completed * 100) / total
+        );
+
+        // Only redraw when the percentage increases
+        if (percentage <= lastPercentage) {
+            return;
+        }
+
+        lastPercentage = percentage;
+        displayProgress(completed, total);
+    }
+);
+
+// Move to the next line after the progress bar
+std::cout << '\n';
+
 
     // Display discovered devices
     std::cout << "\nIP ADDRESS\tSTATUS\n";
@@ -504,7 +527,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.2";
+    std::string appVersion = "0.6.2.1";
 
     bool running = true;
     int choice;
