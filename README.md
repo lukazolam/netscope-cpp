@@ -11,3 +11,6 @@ Implemented Functions:
         - Port Range (max. 10000 Ports)
         - Common Ports
     - Network Discovery
+        - /24 - /32
+        - Mac Address included
+
