@@ -23,10 +23,12 @@ void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
     int errorCount = 0;
 
     // Process returned results
+    std::cout << "\n";
+    std::cout << "\n========== OPEN PORTS ==========\n";
     for (const PortScanResult& result : results) {
         switch (result.status) {
             case PortStatus::Open:
-                std::cout << result.port << "/tcp\tOPEN\n";
+                std::cout << result.port << "/tcp\t\tOPEN\n";
                 openCount++;
                 break;
 
@@ -270,7 +272,7 @@ void showPortRangeScanner() {
         return;
     }
 
-    if (endPort - startPort + 1 > 1000) {
+    if (endPort - startPort + 1 > 10000) {
         std::cout << "\n[ERROR] Maximum range is 1000 ports.\n";
         return;
     }

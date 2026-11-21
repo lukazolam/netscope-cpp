@@ -14,3 +14,7 @@ add_executable(netscope
 target_include_directories(netscope PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+find_package(Threads REQUIRED)
+
+target_link_libraries(netscope PRIVATE Threads::Threads)

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 bool validateIPv4(const std::string& ip);
 
@@ -28,3 +29,13 @@ enum class PortStatus {
 };
 
 PortStatus scanTCPPort(const std::string& ip, int port);
+
+struct PortScanResult {
+    int port;
+    PortStatus status;
+};
+
+std::vector<PortScanResult> scanTCPPorts(
+    const std::string& ip,
+    const std::vector<int>& ports
+);
