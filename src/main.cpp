@@ -449,14 +449,10 @@ std::vector<DiscoveredHost> discovered = discoverHosts(
     }
 );
 
-// Resolve MAC addresses of discovered hosts
-std::cout << "\nLooking up MAC addresses...\n";
-
+// Count MAC addresses found during discovery
 int macCount = 0;
 
 for (DiscoveredHost& host : discovered) {
-    host.macAddress = getMACAddress(host.ipAddress);
-
     if (!host.macAddress.empty()) {
         macCount++;
     } else {
@@ -485,23 +481,41 @@ std::cout << '\n';
 
     // Display discovered devices
 
-        std::cout << "\n========== DISCOVERED DEVICES ==========\n";
+
+    std::cout << "\n========== DISCOVERED DEVICES ==========\n";
+
+    std::cout << std::left
+            << std::setw(18) << "IP ADDRESS"
+            << std::setw(20) << "MAC ADDRESS"
+            << std::setw(32) << "HOSTNAME"
+            << std::setw(7)  << "ICMP"
+            << std::setw(9)  << "ARP"
+            << std::setw(7)  << "TCP"
+            << "STATUS\n";
+
+    std::cout << std::string(108, '-') << '\n';
+
+    for (const DiscoveredHost& host : discovered) {
+        std::string arpStatus =
+            host.arpConfirmed ? "Yes" :
+            host.arpFound ? "Cached" : "No";
+
+        std::string tcpStatus =
+            host.tcpResponded ? "Yes" :
+            (host.icmpResponded || host.arpConfirmed) ? "-" : "No";
 
         std::cout << std::left
-                << std::setw(18) << "IP ADDRESS"
-                << std::setw(22) << "MAC ADDRESS"
-                << std::setw(36) << "HOSTNAME"
-                << "STATUS\n";
+                << std::setw(18) << host.ipAddress
+                << std::setw(20) << host.macAddress
+                << std::setw(32) << host.hostname
+                << std::setw(7)
+                << (host.icmpResponded ? "Yes" : "No")
+                << std::setw(9) << arpStatus
+                << std::setw(7) << tcpStatus
+                << (host.responding ? "Confirmed" : "ARP cached")
+                << '\n';
+    }
 
-        std::cout << std::string(88, '-') << '\n';
-
-        for (const DiscoveredHost& host : discovered) {
-            std::cout << std::left
-                    << std::setw(18) << host.ipAddress
-                    << std::setw(22) << host.macAddress
-                    << std::setw(36) << host.hostname
-                    << "Responding\n";
-        }
 
 
 std::cout << "\n========== RESULTS ==========\n";
@@ -510,6 +524,39 @@ std::cout << "Hosts discovered:  " << discovered.size() << '\n';
 std::cout << "MAC addresses found: " << macCount << '\n';
 std::cout << "Hostnames resolved:  " << hostnameCount << '\n';
 
+
+int icmpCount = 0;
+int arpCount = 0;
+int tcpCount = 0;
+int confirmedCount = 0;
+int cachedOnlyCount = 0;
+
+for (const DiscoveredHost& host : discovered) {
+    if (host.icmpResponded) {
+        icmpCount++;
+    }
+
+    if (host.arpFound) {
+        arpCount++;
+    }
+
+    if (host.tcpResponded) {
+        tcpCount++;
+    }
+
+    if (host.responding) {
+        confirmedCount++;
+    } else {
+        cachedOnlyCount++;
+    }
+}
+
+std::cout << "\n========== DISCOVERY METHODS ==========\n";
+std::cout << "ICMP replies:       " << icmpCount << '\n';
+std::cout << "ARP mappings:       " << arpCount << '\n';
+std::cout << "TCP fallback hits:  " << tcpCount << '\n';
+std::cout << "Confirmed hosts:    " << confirmedCount << '\n';
+std::cout << "ARP-only candidates:" << cachedOnlyCount << '\n';
 }
 
 void showNetworkTools() {
@@ -572,7 +619,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.4";
+    std::string appVersion = "0.6.5";
     bool running = true;
     int choice;
 

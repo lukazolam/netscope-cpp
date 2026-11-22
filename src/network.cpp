@@ -16,6 +16,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <iomanip>
+#include <cstdlib>
 
 #ifdef _WIN32
     #ifndef NOMINMAX
@@ -25,6 +26,7 @@
     #include <winsock2.h>
     #include <ws2tcpip.h>
     #include <iphlpapi.h>
+    #include <icmpapi.h>
 #else
     #include <arpa/inet.h>
     #include <fcntl.h>
@@ -446,6 +448,113 @@ bool isHostResponding(const std::string& ip) {
     return false;
 }
 
+bool pingHost(const std::string& ip) {
+    if (!validateIPv4(ip)) {
+        return false;
+    }
+
+#ifdef _WIN32
+    // Convert the IP address
+    in_addr address{};
+
+    if (InetPtonA(AF_INET, ip.c_str(), &address) != 1) {
+        return false;
+    }
+
+    // Create an ICMP handle
+    HANDLE icmpHandle = IcmpCreateFile();
+
+    if (icmpHandle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    char requestData[] = "NetScope";
+
+    // Buffer for the reply and any additional ICMP data
+    alignas(ICMP_ECHO_REPLY)
+    unsigned char replyBuffer[
+        sizeof(ICMP_ECHO_REPLY) + sizeof(requestData) + 64
+    ]{};
+
+    DWORD replies = IcmpSendEcho(
+        icmpHandle,
+        address.s_addr,
+        requestData,
+        sizeof(requestData),
+        nullptr,
+        replyBuffer,
+        sizeof(replyBuffer),
+        1000
+    );
+
+    bool responding = false;
+
+    if (replies > 0) {
+        auto* reply =
+            reinterpret_cast<ICMP_ECHO_REPLY*>(replyBuffer);
+
+        responding = reply->Status == IP_SUCCESS;
+    }
+
+    IcmpCloseHandle(icmpHandle);
+
+    return responding;
+
+#elif defined(__APPLE__)
+    // One ICMP request, one-second reply timeout
+    std::string command =
+        "/sbin/ping -n -c 1 -W 1000 " + ip +
+        " >/dev/null 2>&1";
+
+    return std::system(command.c_str()) == 0;
+
+#else
+    return false;
+#endif
+}
+
+DiscoveredHost probeHost(const std::string& ip) {
+    DiscoveredHost host{};
+
+    host.ipAddress = ip;
+
+    // Method 1: ICMP echo
+    host.icmpResponded = pingHost(ip);
+
+    // Method 2: ARP lookup
+    host.macAddress = getMACAddress(ip);
+    host.arpFound = !host.macAddress.empty();
+
+#ifdef _WIN32
+    // SendARP actively resolves local MAC addresses
+    host.arpConfirmed = host.arpFound;
+#else
+    // Current macOS implementation reads cached entries
+    host.arpConfirmed = false;
+#endif
+
+    // Method 3: TCP fallback
+    // A cached ARP entry alone is not sufficient proof
+    bool confirmed =
+        host.icmpResponded || host.arpConfirmed;
+
+    if (!confirmed) {
+        host.tcpResponded = isHostResponding(ip);
+    }
+
+    // Include ARP-only candidates, but distinguish
+    // them from hosts confirmed by a live response.
+    host.responding =
+        host.icmpResponded ||
+        host.arpConfirmed ||
+        host.tcpResponded;
+
+    // DNS resolution remains a separate step
+    host.hostname = "";
+
+    return host;
+}
+
 std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
     const std::function<void(std::size_t, std::size_t)>& onProgress
@@ -481,14 +590,8 @@ std::vector<DiscoveredHost> discoverHosts(
 
                 const std::string& ip = addresses[index];
 
-                bool responding = isHostResponding(ip);
-
-                results[index] = {
-                    ip,
-                    responding,
-                    "",
-                    ""
-                };
+                // Probe the host using all supported methods
+                results[index] = probeHost(ip);
                 
                 // Update discovery progress
                 {
@@ -513,9 +616,9 @@ std::vector<DiscoveredHost> discoverHosts(
     std::vector<DiscoveredHost> discovered;
 
     for (const DiscoveredHost& host : results) {
-        if (host.responding) {
-            discovered.push_back(host);
-        }
+    if (host.responding || host.arpFound) {
+        discovered.push_back(host);
+    }
     }
 
     return discovered;

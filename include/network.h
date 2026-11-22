@@ -47,12 +47,22 @@ std::vector<std::string> generateHostIPs(
     int prefix
 );
 
+
 struct DiscoveredHost {
     std::string ipAddress;
-    bool responding;
+    bool responding = false;
     std::string hostname;
     std::string macAddress;
+
+    // Discovery method results
+    bool icmpResponded = false;
+    bool arpFound = false;
+    bool tcpResponded = false;
+
+    // macOS cache-only ARP results may be stale
+    bool arpConfirmed = false;
 };
+
 
 std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
@@ -63,6 +73,9 @@ std::string resolveHostname(const std::string& ip);
 
 std::string getMACAddress(const std::string& ip);
 
+bool pingHost(const std::string& ip);
+
 //w11 functions
 bool initializeNetworking();
 void cleanupNetworking();
+
