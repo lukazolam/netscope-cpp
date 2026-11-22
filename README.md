@@ -14,4 +14,6 @@ Implemented Functions:
         - /24 - /32
         - Mac Address included
         - Reverse DNS Lookup
+        - ARP Lookup
+        - ICMP Lookup
 
