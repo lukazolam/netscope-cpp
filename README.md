@@ -2,7 +2,8 @@
 A modular network diagnostics toolkit written in modern C++
 
 Implemented Functions:
-
+- Systeminfo
+    - Show network adapters
 - Network Tools
     - Validate IPv4 address
     - Subnet calculator
