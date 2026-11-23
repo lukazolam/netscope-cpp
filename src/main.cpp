@@ -616,6 +616,45 @@ void showNetworkTools() {
     }
 }
 
+bool isRelevantAddress(const InterfaceAddress& address) {
+    if (address.family == 4) {
+        return address.address.rfind("127.", 0) != 0 &&
+               address.address.rfind("169.254.", 0) != 0 &&
+               address.address != "0.0.0.0";
+    }
+
+    if (address.family == 6) {
+        if (address.address == "::1" ||
+            address.address == "::") {
+            return false;
+        }
+
+        std::string prefix = address.address.substr(0, 3);
+
+        return prefix != "fe8" &&
+               prefix != "fe9" &&
+               prefix != "fea" &&
+               prefix != "feb";
+    }
+
+    return false;
+}
+
+bool isRelevantInterface(const NetworkInterface& adapter) {
+    if (!adapter.isUp) {
+        return false;
+    }
+
+    for (const InterfaceAddress& address : adapter.addresses) {
+        if (isRelevantAddress(address)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
 void showLocalNetworkInformation() {
     std::cout << "\n========== LOCAL NETWORK INFORMATION ==========\n";
 
@@ -623,15 +662,24 @@ void showLocalNetworkInformation() {
     std::vector<NetworkInterface> interfaces =
         getNetworkInterfaces();
 
-    if (interfaces.empty()) {
-        std::cout << "\n[ERROR] No network interfaces found.\n";
+    // Keep only interfaces with relevant IP connectivity
+    std::vector<NetworkInterface> activeInterfaces;
+
+    for (const NetworkInterface& adapter : interfaces) {
+        if (isRelevantInterface(adapter)) {
+            activeInterfaces.push_back(adapter);
+        }
+    }
+
+    if (activeInterfaces.empty()) {
+        std::cout << "\nNo active network interfaces with usable IP addresses found.\n";
         return;
     }
 
-    std::cout << "\nNetwork Interfaces Found: "
-              << interfaces.size() << '\n';
+    std::cout << "\nActive Network Interfaces: "
+          << activeInterfaces.size() << '\n';
 
-    for (const NetworkInterface& adapter : interfaces) {
+    for (const NetworkInterface& adapter : activeInterfaces) {
         std::cout << "\n========== INTERFACE: "
                   << adapter.name
                   << " ==========\n";
@@ -646,6 +694,9 @@ void showLocalNetworkInformation() {
         bool hasIPv6 = false;
 
         for (const InterfaceAddress& address : adapter.addresses) {
+            if (!isRelevantAddress(address)) {
+                continue;
+            }
             if (address.family == 4) {
                 if (!hasIPv4) {
                     std::cout << "\nIPv4:\n";
@@ -663,6 +714,9 @@ void showLocalNetworkInformation() {
         }
 
         for (const InterfaceAddress& address : adapter.addresses) {
+            if (!isRelevantAddress(address)) {
+                continue;
+            }
             if (address.family == 6) {
                 if (!hasIPv6) {
                     std::cout << "\nIPv6:\n";
