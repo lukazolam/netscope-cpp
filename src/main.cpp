@@ -9,7 +9,7 @@
 
 #include "network.h"
 #include "systeminfo.h"
-
+#include "settings.h"
 
 void displayProgress(std::size_t completed, std::size_t total) {
     const int barWidth = 30;
@@ -654,7 +654,6 @@ bool isRelevantInterface(const NetworkInterface& adapter) {
     return false;
 }
 
-
 void showLocalNetworkInformation() {
     std::cout << "\n========== LOCAL NETWORK INFORMATION ==========\n";
 
@@ -772,6 +771,164 @@ void showLocalNetworkInformation() {
     #endif
 }
 
+bool readSettingNumber(
+    const std::string& prompt,
+    unsigned int minValue,
+    unsigned int maxValue,
+    unsigned int& result
+) {
+    std::cout << prompt;
+
+    std::string input;
+    if (!std::getline(std::cin, input)) {
+        return false;
+    }
+
+    if (input.empty() ||
+        input.find_first_not_of("0123456789")
+            != std::string::npos) {
+        std::cout << "[ERROR] Enter a valid number.\n";
+        return false;
+    }
+
+    try {
+        std::size_t processed = 0;
+        unsigned long value = std::stoul(input, &processed);
+
+        if (processed != input.size() ||
+            value < minValue || value > maxValue) {
+            std::cout << "[ERROR] Value outside allowed range.\n";
+            return false;
+        }
+
+        result = static_cast<unsigned int>(value);
+        return true;
+    }
+    catch (const std::exception&) {
+        std::cout << "[ERROR] Invalid number.\n";
+        return false;
+    }
+}
+
+void showScannerSettings(AppSettings& settings) {
+    while (true) {
+        std::cout << "\n========== SCANNER SETTINGS ==========\n";
+        std::cout << "1. Maximum Threads: " << settings.maxThreads << '\n';
+        std::cout << "2. TCP Timeout: " << settings.tcpTimeoutMs << " ms\n";
+        std::cout << "3. ICMP Timeout: " << settings.icmpTimeoutMs << " ms\n";
+        std::cout << "4. Progress Bars: "
+                  << (settings.showProgress ? "On" : "Off") << '\n';
+        std::cout << "0. Back\n";
+        std::cout << "Select: ";
+
+        std::string input;
+        if (!std::getline(std::cin, input)) return;
+
+        unsigned int value = 0;
+
+        if (input == "1") {
+            if (readSettingNumber("Threads (1-64): ", 1, 64, value))
+                settings.maxThreads = value;
+        }
+        else if (input == "2") {
+            if (readSettingNumber("TCP Timeout (100-10000 ms): ",
+                                  100, 10000, value))
+                settings.tcpTimeoutMs = value;
+        }
+        else if (input == "3") {
+            if (readSettingNumber("ICMP Timeout (100-10000 ms): ",
+                                  100, 10000, value))
+                settings.icmpTimeoutMs = value;
+        }
+        else if (input == "4") {
+            settings.showProgress = !settings.showProgress;
+        }
+        else if (input == "0") {
+            return;
+        }
+        else {
+            std::cout << "[ERROR] Invalid selection.\n";
+        }
+    }
+}
+
+void showDiscoverySettings(AppSettings& settings) {
+    while (true) {
+        std::cout << "\n========== DISCOVERY SETTINGS ==========\n";
+        std::cout << "1. ICMP: "
+                  << (settings.enableICMP ? "On" : "Off") << '\n';
+        std::cout << "2. ARP: "
+                  << (settings.enableARP ? "On" : "Off") << '\n';
+        std::cout << "3. TCP: "
+                  << (settings.enableTCP ? "On" : "Off") << '\n';
+        std::cout << "0. Back\n";
+        std::cout << "Select: ";
+
+        std::string input;
+        if (!std::getline(std::cin, input)) return;
+
+        if (input == "0") return;
+
+        bool* selected = nullptr;
+
+        if (input == "1") selected = &settings.enableICMP;
+        else if (input == "2") selected = &settings.enableARP;
+        else if (input == "3") selected = &settings.enableTCP;
+        else {
+            std::cout << "[ERROR] Invalid selection.\n";
+            continue;
+        }
+
+        int enabledCount =
+            static_cast<int>(settings.enableICMP) +
+            static_cast<int>(settings.enableARP) +
+            static_cast<int>(settings.enableTCP);
+
+        if (*selected && enabledCount == 1) {
+            std::cout << "[ERROR] At least one method must remain enabled.\n";
+            continue;
+        }
+
+        *selected = !*selected;
+    }
+}
+
+void showSettings(AppSettings& settings) {
+    while (true) {
+        std::cout << "\n========== SETTINGS ==========\n";
+        std::cout << "1. Scanner Settings\n";
+        std::cout << "2. Discovery Settings\n";
+        std::cout << "3. Show All Adapters: "
+                  << (settings.showAllAdapters ? "Yes" : "No") << '\n';
+        std::cout << "4. Reset to Defaults\n";
+        std::cout << "0. Back\n";
+        std::cout << "Select: ";
+
+        std::string input;
+        if (!std::getline(std::cin, input)) return;
+
+        if (input == "1") {
+            showScannerSettings(settings);
+        }
+        else if (input == "2") {
+            showDiscoverySettings(settings);
+        }
+        else if (input == "3") {
+            settings.showAllAdapters = !settings.showAllAdapters;
+        }
+        else if (input == "4") {
+            settings = AppSettings{};
+            std::cout << "[OK] Defaults restored.\n";
+        }
+        else if (input == "0") {
+            return;
+        }
+        else {
+            std::cout << "[ERROR] Invalid selection.\n";
+        }
+    }
+}
+
 int main() {
     // Define variables
     std::string appName = "NetScope";
@@ -779,6 +936,7 @@ int main() {
     std::string appVersion = "0.7.1";
     bool running = true;
     int choice;
+    AppSettings settings;
 
     if (!initializeNetworking()) {
     std::cerr << "[ERROR] Unable to initialize networking.\n";
@@ -844,7 +1002,7 @@ int main() {
                 break;
 
             case 3:
-                std::cout << "\nSettings are not available yet.\n";
+                showSettings(settings);
                 break;
 
             case 4:
