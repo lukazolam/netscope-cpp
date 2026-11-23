@@ -8,6 +8,7 @@
 #include <algorithm>
 
 #include "network.h"
+#include "systeminfo.h"
 
 
 void displayProgress(std::size_t completed, std::size_t total) {
@@ -461,7 +462,7 @@ for (DiscoveredHost& host : discovered) {
 }
 
 // Resolve hostnames of discovered devices
-std::cout << "Resolving DNS hostnames...\n";
+std::cout << "\nResolving DNS hostnames...\n";
 
 int hostnameCount = 0;
 
@@ -615,11 +616,78 @@ void showNetworkTools() {
     }
 }
 
+void showLocalNetworkInformation() {
+    std::cout << "\n========== LOCAL NETWORK INFORMATION ==========\n";
+
+    // Request local adapters from the operating system
+    std::vector<NetworkInterface> interfaces =
+        getNetworkInterfaces();
+
+    if (interfaces.empty()) {
+        std::cout << "\n[ERROR] No network interfaces found.\n";
+        return;
+    }
+
+    std::cout << "\nNetwork Interfaces Found: "
+              << interfaces.size() << '\n';
+
+    for (const NetworkInterface& adapter : interfaces) {
+        std::cout << "\n========== INTERFACE: "
+                  << adapter.name
+                  << " ==========\n";
+
+        std::cout << "Status:       "
+                  << (adapter.isUp ? "Up" : "Down") << '\n';
+
+        std::cout << "MAC Address:  "
+                  << adapter.macAddress << '\n';
+
+        bool hasIPv4 = false;
+        bool hasIPv6 = false;
+
+        for (const InterfaceAddress& address : adapter.addresses) {
+            if (address.family == 4) {
+                if (!hasIPv4) {
+                    std::cout << "\nIPv4:\n";
+                    hasIPv4 = true;
+                }
+
+                std::cout << "  Address:     "
+                          << address.address << '\n';
+
+                std::cout << "  Subnet Mask: "
+                          << (address.subnetMask.empty()
+                              ? "Unknown" : address.subnetMask)
+                          << '\n';
+            }
+        }
+
+        for (const InterfaceAddress& address : adapter.addresses) {
+            if (address.family == 6) {
+                if (!hasIPv6) {
+                    std::cout << "\nIPv6:\n";
+                    hasIPv6 = true;
+                }
+
+                std::cout << "  Address:     "
+                          << address.address << '\n';
+
+                std::cout << "  Prefix:      /"
+                          << address.prefixLength << '\n';
+            }
+        }
+
+        if (adapter.addresses.empty()) {
+            std::cout << "\nNo IP addresses assigned.\n";
+        }
+    }
+}
+
 int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.6.5";
+    std::string appVersion = "0.7.0";
     bool running = true;
     int choice;
 
@@ -679,7 +747,7 @@ int main() {
         // Define choices
         switch (choice) {
             case 1:
-                std::cout << "\nLocal network information is not implemented yet.\n";
+                showLocalNetworkInformation();
                 break;
 
             case 2:
