@@ -5,6 +5,8 @@
 #include <map>
 #include <memory>
 #include <sstream>
+#include <utility>
+#include <vector>
 
 #ifdef _WIN32
     #ifndef NOMINMAX
@@ -21,6 +23,12 @@
     #include <net/if.h>
     #include <net/if_dl.h>
     #include <arpa/inet.h>
+    #include <sys/ioctl.h>
+    #include <sys/socket.h>
+    #include <cstring>
+    #include <cstdio>
+    #include <algorithm>
+    #include <unistd.h>
 #endif
 
 // Format six or more MAC bytes as hexadecimal text.
@@ -47,6 +55,92 @@ static std::string formatMAC(
     return result.str();
 }
 
+#ifdef __APPLE__
+
+static unsigned int getInterfaceMTU(
+    const std::string& name
+) {
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sock < 0) {
+        return 0;
+    }
+
+    ifreq request{};
+
+    std::strncpy(
+        request.ifr_name,
+        name.c_str(),
+        sizeof(request.ifr_name) - 1
+    );
+
+    unsigned int mtu = 0;
+
+    if (ioctl(sock, SIOCGIFMTU, &request) == 0) {
+        if (request.ifr_mtu > 0) {
+            mtu = static_cast<unsigned int>(
+                request.ifr_mtu
+            );
+        }
+    }
+
+    close(sock);
+    return mtu;
+}
+
+static std::pair<std::string, std::string>
+getDefaultIPv4Route() {
+    FILE* pipe = popen(
+        "/sbin/route -n get -inet default 2>/dev/null",
+        "r"
+    );
+
+    if (!pipe) {
+        return {"", ""};
+    }
+
+    std::string gateway;
+    std::string interfaceName;
+    char buffer[512];
+
+    while (fgets(buffer, sizeof(buffer), pipe)) {
+        std::string line = buffer;
+
+        std::size_t colon = line.find(':');
+
+        if (colon == std::string::npos) {
+            continue;
+        }
+
+        std::string key = line.substr(0, colon);
+        std::string value = line.substr(colon + 1);
+
+        // Remove leading/trailing whitespace
+        auto first = value.find_first_not_of(" \t\r\n");
+
+        if (first == std::string::npos) {
+            continue;
+        }
+
+        auto last = value.find_last_not_of(" \t\r\n");
+
+        value = value.substr(first, last - first + 1);
+
+        if (key.find("gateway") != std::string::npos) {
+            gateway = value;
+        }
+
+        if (key.find("interface") != std::string::npos) {
+            interfaceName = value;
+        }
+    }
+
+    pclose(pipe);
+
+    return {interfaceName, gateway};
+}
+
+#endif
 
 #ifdef __APPLE__
 
@@ -186,16 +280,91 @@ std::vector<NetworkInterface> getNetworkInterfaces() {
 
     // Convert the map to our public vector format
     std::vector<NetworkInterface> results;
+    auto defaultRoute = getDefaultIPv4Route();
 
     for (auto& entry : interfaces) {
         if (entry.second.macAddress.empty()) {
             entry.second.macAddress = "Unknown";
         }
-
+        entry.second.mtu = getInterfaceMTU(entry.second.name);
+        if (entry.second.name == defaultRoute.first) {
+            entry.second.defaultGateway = defaultRoute.second;
+        }
         results.push_back(entry.second);
     }
 
     return results;
+}
+
+std::vector<std::string> getSystemDNSServers() {
+    std::vector<std::string> servers;
+
+    FILE* pipe = popen(
+        "/usr/sbin/scutil --dns 2>/dev/null",
+        "r"
+    );
+
+    if (!pipe) {
+        return servers;
+    }
+
+    char buffer[512];
+    bool inFirstResolver = false;
+
+    while (fgets(buffer, sizeof(buffer), pipe)) {
+        std::string line = buffer;
+
+        // Begin reading the first resolver
+        if (line.find("resolver #1") != std::string::npos) {
+            inFirstResolver = true;
+            continue;
+        }
+
+        if (!inFirstResolver) {
+            continue;
+        }
+
+        // Stop at the next resolver configuration
+        if (line.find("resolver #") != std::string::npos) {
+            break;
+        }
+
+        // Extract nameserver entries
+        if (line.find("nameserver[") != std::string::npos) {
+            std::size_t colon = line.find(':');
+
+            if (colon == std::string::npos) {
+                continue;
+            }
+
+            std::string server = line.substr(colon + 1);
+
+            auto first = server.find_first_not_of(" \t\r\n");
+
+            if (first == std::string::npos) {
+                continue;
+            }
+
+            auto last = server.find_last_not_of(" \t\r\n");
+
+            server = server.substr(
+                first,
+                last - first + 1
+            );
+
+            // Avoid duplicate entries
+            if (std::find(
+                    servers.begin(),
+                    servers.end(),
+                    server
+                ) == servers.end()) {
+                servers.push_back(server);
+            }
+        }
+    }
+
+    pclose(pipe);
+    return servers;
 }
 
 #endif
@@ -229,6 +398,46 @@ static std::string wideToUTF8(const wchar_t* text) {
     return result;
 }
 
+static std::string socketAddressToString(
+    const sockaddr* address
+) {
+    if (!address) {
+        return "";
+    }
+
+    char buffer[INET6_ADDRSTRLEN]{};
+
+    if (address->sa_family == AF_INET) {
+        auto* ipv4 =
+            reinterpret_cast<const sockaddr_in*>(address);
+
+        if (InetNtopA(
+                AF_INET,
+                const_cast<IN_ADDR*>(&ipv4->sin_addr),
+                buffer,
+                sizeof(buffer)
+            )) {
+            return buffer;
+        }
+    }
+
+    if (address->sa_family == AF_INET6) {
+        auto* ipv6 =
+            reinterpret_cast<const sockaddr_in6*>(address);
+
+        if (InetNtopA(
+                AF_INET6,
+                const_cast<IN6_ADDR*>(&ipv6->sin6_addr),
+                buffer,
+                sizeof(buffer)
+            )) {
+            return buffer;
+        }
+    }
+
+    return "";
+}
+
 std::vector<NetworkInterface> getNetworkInterfaces() {
     std::vector<NetworkInterface> results;
 
@@ -247,7 +456,7 @@ std::vector<NetworkInterface> getNetworkInterfaces() {
 
         status = GetAdaptersAddresses(
             AF_UNSPEC,
-            GAA_FLAG_INCLUDE_PREFIX,
+            GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_GATEWAYS,
             nullptr,
             adapters,
             &bufferSize
@@ -280,6 +489,41 @@ std::vector<NetworkInterface> getNetworkInterfaces() {
             current->PhysicalAddress,
             current->PhysicalAddressLength
         );
+        
+        // Read the interface MTU
+        adapter.mtu = current->Mtu;
+
+        // Read the first IPv4 gateway
+        for (auto* gateway = current->FirstGatewayAddress;
+            gateway != nullptr;
+            gateway = gateway->Next) {
+
+            const sockaddr* address =
+                gateway->Address.lpSockaddr;
+
+            if (address && address->sa_family == AF_INET) {
+                adapter.defaultGateway =
+                    socketAddressToString(address);
+
+                if (!adapter.defaultGateway.empty()) {
+                    break;
+                }
+            }
+        }
+
+        // Read adapter DNS servers
+        for (auto* dns = current->FirstDnsServerAddress;
+            dns != nullptr;
+            dns = dns->Next) {
+
+            std::string server = socketAddressToString(
+                dns->Address.lpSockaddr
+            );
+
+            if (!server.empty()) {
+                adapter.dnsServers.push_back(server);
+            }
+        }
 
         // Enumerate all IP addresses on this adapter
         for (auto* address = current->FirstUnicastAddress;
@@ -360,5 +604,7 @@ std::vector<NetworkInterface> getNetworkInterfaces() {
 
     return results;
 }
-
+std::vector<std::string> getSystemDNSServers() {
+    return {};
+}
 #endif

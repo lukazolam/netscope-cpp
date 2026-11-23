@@ -689,6 +689,13 @@ void showLocalNetworkInformation() {
 
         std::cout << "MAC Address:  "
                   << adapter.macAddress << '\n';
+        
+        std::cout << "MTU:          ";
+        if (adapter.mtu > 0) {
+            std::cout << adapter.mtu << '\n';
+        } else {
+            std::cout << "Unknown\n";
+        }
 
         bool hasIPv4 = false;
         bool hasIPv6 = false;
@@ -710,6 +717,11 @@ void showLocalNetworkInformation() {
                           << (address.subnetMask.empty()
                               ? "Unknown" : address.subnetMask)
                           << '\n';
+                
+                if (!adapter.defaultGateway.empty()) {
+                    std::cout << "  Gateway:     "
+                            << adapter.defaultGateway << '\n';
+                }
             }
         }
 
@@ -731,17 +743,40 @@ void showLocalNetworkInformation() {
             }
         }
 
+        if (!adapter.dnsServers.empty()) {
+            std::cout << "\nDNS Servers:\n";
+
+            for (const std::string& dns : adapter.dnsServers) {
+                std::cout << "  " << dns << '\n';
+            }
+        }
+
         if (adapter.addresses.empty()) {
             std::cout << "\nNo IP addresses assigned.\n";
         }
     }
+    #ifdef __APPLE__
+    std::vector<std::string> dnsServers =
+        getSystemDNSServers();
+
+    std::cout << "\n========== DNS CONFIGURATION ==========\n";
+    std::cout << "Default Resolver:\n";
+
+    if (dnsServers.empty()) {
+        std::cout << "  No DNS servers found.\n";
+    } else {
+        for (const std::string& dns : dnsServers) {
+            std::cout << "  " << dns << '\n';
+        }
+    }
+    #endif
 }
 
 int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.7.0";
+    std::string appVersion = "0.7.1";
     bool running = true;
     int choice;
 
