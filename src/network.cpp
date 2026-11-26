@@ -419,8 +419,13 @@ std::vector<PortScanResult> scanTCPPorts(
                 // Update completed port count
                 std::size_t finished = completed.fetch_add(1) + 1;
 
-                // Report progress safely
-                if (onProgress) {
+                // Emit at most roughly 100 progress updates, instead of
+                // taking a lock and invoking a callback for every port.
+                const std::size_t progressStep =
+                    std::max<std::size_t>(1, ports.size() / 100);
+                if (onProgress &&
+                    (finished % progressStep == 0 ||
+                     finished == ports.size())) {
                     std::lock_guard<std::mutex> lock(progressMutex);
                     onProgress(finished, ports.size());
                 }
