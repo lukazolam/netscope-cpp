@@ -10,6 +10,7 @@ add_executable(netscope
     src/main.cpp
     src/network.cpp
     src/systeminfo.cpp
+    src/macvendor.cpp
 )
 
 target_include_directories(netscope PRIVATE
