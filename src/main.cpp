@@ -10,6 +10,7 @@
 #include "network.h"
 #include "systeminfo.h"
 #include "settings.h"
+#include "export.h"
 
 void displayProgress(std::size_t completed, std::size_t total) {
     const int barWidth = 30;
@@ -575,6 +576,25 @@ std::cout << "ARP mappings:       " << arpCount << '\n';
 std::cout << "TCP fallback hits:  " << tcpCount << '\n';
 std::cout << "Confirmed hosts:    " << confirmedCount << '\n';
 std::cout << "ARP-only candidates:" << cachedOnlyCount << '\n';
+
+    std::string choice;
+    std::cout << "\nExport discovery results? (y/n): ";
+    if (!std::getline(std::cin, choice)) return;
+
+    if (choice == "y" || choice == "Y") {
+        std::string filename;
+        std::cout << "Output file (.csv or .json; default: netscope-discovery.csv): ";
+        if (!std::getline(std::cin, filename)) return;
+        if (filename.empty()) filename = "netscope-discovery.csv";
+
+        if (exportDiscoveryResults(discovered, filename)) {
+            std::cout << "[OK] Exported " << discovered.size()
+                      << " host(s) to " << filename << '\n';
+        } else {
+            std::cout << "[ERROR] Export failed. Use .csv or .json and a writable path.\n";
+        }
+    }
+
 }
 
 void showNetworkTools(const AppSettings& settings) {
