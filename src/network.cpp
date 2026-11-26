@@ -416,11 +416,19 @@ std::vector<PortScanResult> scanTCPPorts(
                 PortStatus status = scanTCPPort(ip, port, settings);
                 results[index] = {port, status};
 
+                
                 // Update completed port count
                 std::size_t finished = completed.fetch_add(1) + 1;
 
-                // Report progress safely
-                if (onProgress) {
+                // Calculate an update interval for large scans
+                const std::size_t progressStep =
+                    std::max<std::size_t>(1, ports.size() / 100);
+
+                // Only report progress at selected intervals
+                if (onProgress &&
+                    (finished % progressStep == 0 ||
+                    finished == ports.size())) {
+
                     std::lock_guard<std::mutex> lock(progressMutex);
                     onProgress(finished, ports.size());
                 }

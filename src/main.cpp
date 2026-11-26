@@ -328,11 +328,6 @@ void showPortRangeScanner(const AppSettings& settings) {
         return;
     }
 
-    if (endPort - startPort + 1 > 10000) {
-        std::cout << "\n[ERROR] Maximum range is 1000 ports.\n";
-        return;
-    }
-
     // Generate port list
     std::vector<int> ports;
 
@@ -340,6 +335,37 @@ void showPortRangeScanner(const AppSettings& settings) {
         ports.push_back(port);
     }
 
+    displayPortScan(ip, ports, settings);
+}
+
+void showAllPortScanner(const AppSettings& settings) {
+    std::string ip;
+
+    std::cout << "\n========== FULL TCP PORT SCANNER ==========\n";
+    std::cout << "Target IPv4: ";
+
+    if (!std::getline(std::cin, ip)) {
+        return;
+    }
+
+    if (!validateIPv4(ip)) {
+        std::cout << "[ERROR] Invalid IPv4 address.\n";
+        return;
+    }
+
+    std::vector<int> ports;
+
+    // Avoid repeated vector reallocations
+    ports.reserve(65535);
+
+    // Generate all valid TCP port numbers
+    for (int port = 1; port <= 65535; ++port) {
+        ports.push_back(port);
+    }
+
+    std::cout << "Scanning all 65,535 TCP ports.\n";
+
+    // Reuse our existing parallel scanner
     displayPortScan(ip, ports, settings);
 }
 
@@ -351,6 +377,7 @@ void showTCPScanner(const AppSettings& settings) {
         std::cout << "1. Scan Single Port\n";
         std::cout << "2. Scan Port Range\n";
         std::cout << "3. Scan Common Ports\n";
+        std::cout << "4. Scan All 65,535 Ports\n";
         std::cout << "0. Back to Network Tools\n";
 
         std::string input;
@@ -368,6 +395,9 @@ void showTCPScanner(const AppSettings& settings) {
         }
         else if (input == "3") {
             showCommonPortScanner(settings);
+        }
+        else if (input == "4") {
+            showAllPortScanner(settings);
         }
         else if (input == "0") {
             running = false;
@@ -850,7 +880,7 @@ void showScannerSettings(AppSettings& settings) {
         unsigned int value = 0;
 
         if (input == "1") {
-            if (readSettingNumber("Threads (1-64): ", 1, 64, value))
+            if (readSettingNumber("Threads (1-256): ", 1, 256, value))
                 settings.maxThreads = value;
         }
         else if (input == "2") {
