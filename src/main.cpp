@@ -10,6 +10,7 @@
 #include "network.h"
 #include "systeminfo.h"
 #include "settings.h"
+#include "macvendor.h"
 
 void displayProgress(std::size_t completed, std::size_t total) {
     const int barWidth = 30;
@@ -327,10 +328,8 @@ void showPortRangeScanner(const AppSettings& settings) {
         return;
     }
 
-    if (endPort - startPort + 1 > 10000) {
-        std::cout << "\n[ERROR] Maximum range is 1000 ports.\n";
-        return;
-    }
+    // All 65,535 TCP ports are supported; large scans may take longer.
+
 
     // Generate port list
     std::vector<int> ports;
@@ -342,6 +341,25 @@ void showPortRangeScanner(const AppSettings& settings) {
     displayPortScan(ip, ports, settings);
 }
 
+void showAllPortScanner(const AppSettings& settings) {
+    std::string ip;
+    std::cout << "\n========== FULL TCP PORT SCANNER ==========\n";
+    std::cout << "Target IPv4: ";
+    if (!std::getline(std::cin, ip)) return;
+    if (!validateIPv4(ip)) {
+        std::cout << "[ERROR] Invalid IPv4 address.\n";
+        return;
+    }
+
+    std::vector<int> ports;
+    ports.reserve(65535);
+    for (int port = 1; port <= 65535; ++port) {
+        ports.push_back(port);
+    }
+    std::cout << "Scanning all 65,535 TCP ports.\n";
+    displayPortScan(ip, ports, settings);
+}
+
 void showTCPScanner(const AppSettings& settings) {
     bool running = true;
 
@@ -350,6 +368,7 @@ void showTCPScanner(const AppSettings& settings) {
         std::cout << "1. Scan Single Port\n";
         std::cout << "2. Scan Port Range\n";
         std::cout << "3. Scan Common Ports\n";
+        std::cout << "4. Scan All 65,535 Ports\n";
         std::cout << "0. Back to Network Tools\n";
 
         std::string input;
@@ -367,6 +386,9 @@ void showTCPScanner(const AppSettings& settings) {
         }
         else if (input == "3") {
             showCommonPortScanner(settings);
+        }
+        else if (input == "4") {
+            showAllPortScanner(settings);
         }
         else if (input == "0") {
             running = false;
@@ -506,12 +528,13 @@ std::cout << '\n';
             << std::setw(18) << "IP ADDRESS"
             << std::setw(20) << "MAC ADDRESS"
             << std::setw(32) << "HOSTNAME"
+            << std::setw(23) << "VENDOR"
             << std::setw(7)  << "ICMP"
             << std::setw(9)  << "ARP"
             << std::setw(7)  << "TCP"
             << "STATUS\n";
 
-    std::cout << std::string(108, '-') << '\n';
+    std::cout << std::string(131, '-') << '\n';
 
     for (const DiscoveredHost& host : discovered) {
         std::string arpStatus =
@@ -526,6 +549,7 @@ std::cout << '\n';
                 << std::setw(18) << host.ipAddress
                 << std::setw(20) << host.macAddress
                 << std::setw(32) << host.hostname
+                << std::setw(23) << lookupMACVendor(host.macAddress)
                 << std::setw(7)
                 << (host.icmpResponded ? "Yes" : "No")
                 << std::setw(9) << arpStatus
@@ -847,7 +871,7 @@ void showScannerSettings(AppSettings& settings) {
         unsigned int value = 0;
 
         if (input == "1") {
-            if (readSettingNumber("Threads (1-64): ", 1, 64, value))
+            if (readSettingNumber("Threads (1-256): ", 1, 256, value))
                 settings.maxThreads = value;
         }
         else if (input == "2") {
