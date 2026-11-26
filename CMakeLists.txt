@@ -28,3 +28,15 @@ if(WIN32)
         iphlpapi
     )
 endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(netscope_macvendor_tests
+        tests/macvendor_test.cpp
+        src/macvendor.cpp
+    )
+    target_include_directories(netscope_macvendor_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    add_test(NAME macvendor_lookup COMMAND netscope_macvendor_tests)
+endif()
