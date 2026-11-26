@@ -10,6 +10,7 @@
 #include "network.h"
 #include "systeminfo.h"
 #include "settings.h"
+#include "macvendor.h"
 
 void displayProgress(std::size_t completed, std::size_t total) {
     const int barWidth = 30;
@@ -506,12 +507,13 @@ std::cout << '\n';
             << std::setw(18) << "IP ADDRESS"
             << std::setw(20) << "MAC ADDRESS"
             << std::setw(32) << "HOSTNAME"
+            << std::setw(30) << "VENDOR"
             << std::setw(7)  << "ICMP"
             << std::setw(9)  << "ARP"
             << std::setw(7)  << "TCP"
             << "STATUS\n";
 
-    std::cout << std::string(108, '-') << '\n';
+    std::cout << std::string(138, '-') << '\n';
 
     for (const DiscoveredHost& host : discovered) {
         std::string arpStatus =
@@ -526,6 +528,7 @@ std::cout << '\n';
                 << std::setw(18) << host.ipAddress
                 << std::setw(20) << host.macAddress
                 << std::setw(32) << host.hostname
+                << std::setw(30) << lookupMACVendor(host.macAddress)
                 << std::setw(7)
                 << (host.icmpResponded ? "Yes" : "No")
                 << std::setw(9) << arpStatus
@@ -953,7 +956,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Network Toolkit";
-    std::string appVersion = "0.8";
+    std::string appVersion = "0.9.1";
     bool running = true;
     int choice;
     AppSettings settings;
