@@ -220,7 +220,11 @@ std::vector<std::string> generateHostIPs(
     return hosts;
 }
 
-PortStatus scanTCPPort(const std::string& ip, int port) {
+PortStatus scanTCPPort(
+    const std::string& ip,
+    int port,
+    const AppSettings& settings
+) {
     if (!validateIPv4(ip) || port < 1 || port > 65535) {
         return PortStatus::Error;
     }
@@ -298,7 +302,8 @@ PortStatus scanTCPPort(const std::string& ip, int port) {
     FD_SET(sock, &writeSet);
 
     timeval timeout{};
-    timeout.tv_sec = 2;
+    timeout.tv_sec = settings.tcpTimeoutMs / 1000;
+    timeout.tv_usec = (settings.tcpTimeoutMs % 1000) * 1000;
 
 #ifdef _WIN32
     result = select(
@@ -371,14 +376,14 @@ PortStatus scanTCPPort(const std::string& ip, int port) {
 std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
     const std::vector<int>& ports,
+    const AppSettings& settings,
     const std::function<void(std::size_t, std::size_t)>& onProgress
 ) {
     if (ports.empty()) {
         return {};
     }
 
-    const unsigned int maxThreads = 32;
-
+    const unsigned int maxThreads = settings.maxThreads;
     const unsigned int threadCount = std::min(
         maxThreads,
         static_cast<unsigned int>(ports.size())
@@ -408,7 +413,7 @@ std::vector<PortScanResult> scanTCPPorts(
 
                 int port = ports[index];
 
-                PortStatus status = scanTCPPort(ip, port);
+                PortStatus status = scanTCPPort(ip, port, settings);
                 results[index] = {port, status};
 
                 // Update completed port count
@@ -430,14 +435,17 @@ std::vector<PortScanResult> scanTCPPorts(
     return results;
 }
 
-bool isHostResponding(const std::string& ip) {
+bool isHostResponding(
+    const std::string& ip,
+    const AppSettings& settings
+) {
     // Common TCP ports to probe
     const std::vector<int> probePorts = {
         22, 80, 443, 445, 3389, 8080
     };
 
     for (int port : probePorts) {
-        PortStatus status = scanTCPPort(ip, port);
+        PortStatus status = scanTCPPort(ip, port, settings);
 
         if (status == PortStatus::Open ||
             status == PortStatus::Closed) {
@@ -448,7 +456,10 @@ bool isHostResponding(const std::string& ip) {
     return false;
 }
 
-bool pingHost(const std::string& ip) {
+bool pingHost(
+    const std::string& ip,
+    const AppSettings& settings
+) {
     if (!validateIPv4(ip)) {
         return false;
     }
@@ -484,7 +495,7 @@ bool pingHost(const std::string& ip) {
         nullptr,
         replyBuffer,
         sizeof(replyBuffer),
-        1000
+        settings.icmpTimeoutMs
     );
 
     bool responding = false;
@@ -503,8 +514,9 @@ bool pingHost(const std::string& ip) {
 #elif defined(__APPLE__)
     // One ICMP request, one-second reply timeout
     std::string command =
-        "/sbin/ping -n -c 1 -W 1000 " + ip +
-        " >/dev/null 2>&1";
+    "/sbin/ping -n -c 1 -W " +
+    std::to_string(settings.icmpTimeoutMs) +
+    " " + ip + " >/dev/null 2>&1";
 
     return std::system(command.c_str()) == 0;
 
@@ -513,57 +525,59 @@ bool pingHost(const std::string& ip) {
 #endif
 }
 
-DiscoveredHost probeHost(const std::string& ip) {
-    DiscoveredHost host{};
 
+
+DiscoveredHost probeHost(
+    const std::string& ip,
+    const AppSettings& settings
+) {
+    DiscoveredHost host{};
     host.ipAddress = ip;
 
-    // Method 1: ICMP echo
-    host.icmpResponded = pingHost(ip);
+    // ICMP discovery
+    if (settings.enableICMP) {
+        host.icmpResponded = pingHost(ip, settings);
+    }
 
-    // Method 2: ARP lookup
-    host.macAddress = getMACAddress(ip);
-    host.arpFound = !host.macAddress.empty();
+    // ARP discovery
+    if (settings.enableARP) {
+        host.macAddress = getMACAddress(ip);
+        host.arpFound = !host.macAddress.empty();
 
 #ifdef _WIN32
-    // SendARP actively resolves local MAC addresses
-    host.arpConfirmed = host.arpFound;
+        host.arpConfirmed = host.arpFound;
 #else
-    // Current macOS implementation reads cached entries
-    host.arpConfirmed = false;
+        host.arpConfirmed = false;
 #endif
+    }
 
-    // Method 3: TCP fallback
-    // A cached ARP entry alone is not sufficient proof
+    // TCP fallback
     bool confirmed =
         host.icmpResponded || host.arpConfirmed;
 
-    if (!confirmed) {
-        host.tcpResponded = isHostResponding(ip);
+    if (settings.enableTCP && !confirmed) {
+        host.tcpResponded =
+            isHostResponding(ip, settings);
     }
 
-    // Include ARP-only candidates, but distinguish
-    // them from hosts confirmed by a live response.
     host.responding =
         host.icmpResponded ||
         host.arpConfirmed ||
         host.tcpResponded;
-
-    // DNS resolution remains a separate step
-    host.hostname = "";
 
     return host;
 }
 
 std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
+    const AppSettings& settings,
     const std::function<void(std::size_t, std::size_t)>& onProgress
 ) {
     if (addresses.empty()) {
         return {};
     }
 
-    const unsigned int maxThreads = 32;
+const unsigned int maxThreads = settings.maxThreads;
 
     const unsigned int threadCount = std::min(
         maxThreads,
@@ -591,7 +605,7 @@ std::vector<DiscoveredHost> discoverHosts(
                 const std::string& ip = addresses[index];
 
                 // Probe the host using all supported methods
-                results[index] = probeHost(ip);
+                results[index] = probeHost(ip, settings);
                 
                 // Update discovery progress
                 {

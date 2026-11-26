@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include "settings.h"
 
 bool validateIPv4(const std::string& ip);
 
@@ -29,7 +30,11 @@ enum class PortStatus {
     Error
 };
 
-PortStatus scanTCPPort(const std::string& ip, int port);
+PortStatus scanTCPPort(
+    const std::string& ip,
+    int port,
+    const AppSettings& settings
+);
 
 struct PortScanResult {
     int port;
@@ -39,6 +44,7 @@ struct PortScanResult {
 std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
     const std::vector<int>& ports,
+    const AppSettings& settings,
     const std::function<void(std::size_t, std::size_t)>& onProgress = {}
 );
 
@@ -66,6 +72,7 @@ struct DiscoveredHost {
 
 std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
+    const AppSettings& settings,
     const std::function<void(std::size_t, std::size_t)>& onProgress = {}
 );
 
@@ -73,7 +80,10 @@ std::string resolveHostname(const std::string& ip);
 
 std::string getMACAddress(const std::string& ip);
 
-bool pingHost(const std::string& ip);
+bool pingHost(
+    const std::string& ip,
+    const AppSettings& settings
+);
 
 //w11 functions
 bool initializeNetworking();

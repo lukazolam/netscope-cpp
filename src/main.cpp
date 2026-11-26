@@ -36,28 +36,37 @@ void displayProgress(std::size_t completed, std::size_t total) {
               << std::flush;
 }
 
-void displayPortScan(const std::string& ip, const std::vector<int>& ports) {
+void displayPortScan(const std::string& ip, const std::vector<int>& ports, const AppSettings& settings) {
     std::cout << "\nScanning " << ip << "...\n";
 
     auto startTime = std::chrono::steady_clock::now();
 
+        
     int lastPercentage = -1;
+
+    std::function<void(std::size_t, std::size_t)> progressCallback;
+
+    if (settings.showProgress) {
+        progressCallback =
+            [&](std::size_t completed, std::size_t total) {
+                int percentage = static_cast<int>(
+                    (completed * 100) / total
+                );
+
+                if (percentage <= lastPercentage) {
+                    return;
+                }
+
+                lastPercentage = percentage;
+                displayProgress(completed, total);
+            };
+    }
 
     std::vector<PortScanResult> results = scanTCPPorts(
         ip,
         ports,
-        [&](std::size_t completed, std::size_t total) {
-            int percentage = static_cast<int>(
-                (completed * 100) / total
-            );
-
-            if (percentage <= lastPercentage) {
-                return;
-            }
-
-            lastPercentage = percentage;
-            displayProgress(completed, total);
-        }
+        settings,
+        progressCallback
     );
 
     std::cout << '\n';
@@ -161,7 +170,7 @@ void showSubnetCalculator() {
     std::cout << "Usable Hosts:       " << subnet.usableHosts << '\n';
 }
 
-void showSinglePortScanner() {
+void showSinglePortScanner(const AppSettings& settings) {
     std::string ip;
     std::string portInput;
 
@@ -211,7 +220,7 @@ void showSinglePortScanner() {
     // Start the scan
     std::cout << "\nScanning " << ip << ":" << port << "...\n";
 
-    PortStatus result = scanTCPPort(ip, port);
+    PortStatus result = scanTCPPort(ip, port, settings);
 
     // Display the result
     switch (result) {
@@ -235,7 +244,7 @@ void showSinglePortScanner() {
     }
 }
 
-void showCommonPortScanner() {
+void showCommonPortScanner(const AppSettings& settings) {
     std::string ip;
 
     std::cout << "\n========== COMMON PORT SCANNER ==========\n";
@@ -257,10 +266,10 @@ void showCommonPortScanner() {
         5432, 5900, 6379, 8080, 8443
     };
 
-    displayPortScan(ip, commonPorts);
+    displayPortScan(ip, commonPorts, settings);
 }
 
-void showPortRangeScanner() {
+void showPortRangeScanner(const AppSettings& settings) {
     std::string ip;
     std::string startInput;
     std::string endInput;
@@ -330,10 +339,10 @@ void showPortRangeScanner() {
         ports.push_back(port);
     }
 
-    displayPortScan(ip, ports);
+    displayPortScan(ip, ports, settings);
 }
 
-void showTCPScanner() {
+void showTCPScanner(const AppSettings& settings) {
     bool running = true;
 
     while (running) {
@@ -351,13 +360,13 @@ void showTCPScanner() {
         }
 
         if (input == "1") {
-            showSinglePortScanner();
+            showSinglePortScanner(settings);
         }
         else if (input == "2") {
-            showPortRangeScanner();
+            showPortRangeScanner(settings);
         }
         else if (input == "3") {
-            showCommonPortScanner();
+            showCommonPortScanner(settings);
         }
         else if (input == "0") {
             running = false;
@@ -371,7 +380,7 @@ void showTCPScanner() {
     }
 }
 
-void showNetworkDiscovery() {
+void showNetworkDiscovery(const AppSettings& settings) {
     std::string ip;
     std::string prefixInput;
 
@@ -426,29 +435,37 @@ void showNetworkDiscovery() {
     std::cout << "Subnet Mask: " << subnet.subnetMask << '\n';
     std::cout << "Hosts to scan: " << hosts.size() << "\n\n";
 
-    
-std::cout << "Discovering devices...\n";
+        
+    std::cout << "Discovering devices...\n";
 
-// Keep track of the last displayed percentage
-int lastPercentage = -1;
+    // Keep track of the last displayed percentage
 
-// Start discovery and receive progress updates
-std::vector<DiscoveredHost> discovered = discoverHosts(
-    hosts,
-    [&](std::size_t completed, std::size_t total) {
-        int percentage = static_cast<int>(
-            (completed * 100) / total
-        );
+    int lastPercentage = -1;
 
-        // Only redraw when the percentage increases
-        if (percentage <= lastPercentage) {
-            return;
-        }
+    std::function<void(std::size_t, std::size_t)> progressCallback;
 
-        lastPercentage = percentage;
-        displayProgress(completed, total);
+    if (settings.showProgress) {
+        progressCallback =
+            [&](std::size_t completed, std::size_t total) {
+                int percentage = static_cast<int>(
+                    (completed * 100) / total
+                );
+
+                if (percentage <= lastPercentage) {
+                    return;
+                }
+
+                lastPercentage = percentage;
+                displayProgress(completed, total);
+            };
     }
-);
+
+    // Run discovery with the current settings
+    std::vector<DiscoveredHost> discovered = discoverHosts(
+        hosts,
+        settings,
+        progressCallback
+    );
 
 // Count MAC addresses found during discovery
 int macCount = 0;
@@ -560,7 +577,7 @@ std::cout << "Confirmed hosts:    " << confirmedCount << '\n';
 std::cout << "ARP-only candidates:" << cachedOnlyCount << '\n';
 }
 
-void showNetworkTools() {
+void showNetworkTools(const AppSettings& settings) {
     bool running = true;
 
     while (running) {
@@ -602,10 +619,10 @@ void showNetworkTools() {
             showSubnetCalculator();
         }
         else if (input == "3") {
-            showTCPScanner();
+            showTCPScanner(settings);
         }
         else if (input == "4") {
-            showNetworkDiscovery();
+            showNetworkDiscovery(settings);
         }
         else if (input == "0") {
             running = false;
@@ -654,7 +671,7 @@ bool isRelevantInterface(const NetworkInterface& adapter) {
     return false;
 }
 
-void showLocalNetworkInformation() {
+void showLocalNetworkInformation(const AppSettings& settings) {
     std::cout << "\n========== LOCAL NETWORK INFORMATION ==========\n";
 
     // Request local adapters from the operating system
@@ -665,8 +682,9 @@ void showLocalNetworkInformation() {
     std::vector<NetworkInterface> activeInterfaces;
 
     for (const NetworkInterface& adapter : interfaces) {
-        if (isRelevantInterface(adapter)) {
-            activeInterfaces.push_back(adapter);
+    if (settings.showAllAdapters ||
+        isRelevantInterface(adapter)) {
+        activeInterfaces.push_back(adapter);
         }
     }
 
@@ -675,7 +693,7 @@ void showLocalNetworkInformation() {
         return;
     }
 
-    std::cout << "\nActive Network Interfaces: "
+    std::cout << "\nNetwork Interfaces Shown: "
           << activeInterfaces.size() << '\n';
 
     for (const NetworkInterface& adapter : activeInterfaces) {
@@ -700,7 +718,8 @@ void showLocalNetworkInformation() {
         bool hasIPv6 = false;
 
         for (const InterfaceAddress& address : adapter.addresses) {
-            if (!isRelevantAddress(address)) {
+            if (!settings.showAllAdapters &&
+                !isRelevantAddress(address)) {
                 continue;
             }
             if (address.family == 4) {
@@ -725,7 +744,8 @@ void showLocalNetworkInformation() {
         }
 
         for (const InterfaceAddress& address : adapter.addresses) {
-            if (!isRelevantAddress(address)) {
+            if (!settings.showAllAdapters &&
+                !isRelevantAddress(address)) {
                 continue;
             }
             if (address.family == 6) {
@@ -932,8 +952,8 @@ void showSettings(AppSettings& settings) {
 int main() {
     // Define variables
     std::string appName = "NetScope";
-    std::string appDescription = "Homelab Network Toolkit";
-    std::string appVersion = "0.7.1";
+    std::string appDescription = "Network Toolkit";
+    std::string appVersion = "0.8";
     bool running = true;
     int choice;
     AppSettings settings;
@@ -994,11 +1014,11 @@ int main() {
         // Define choices
         switch (choice) {
             case 1:
-                showLocalNetworkInformation();
+                showLocalNetworkInformation(settings);
                 break;
 
             case 2:
-                showNetworkTools();
+                showNetworkTools(settings);
                 break;
 
             case 3:
