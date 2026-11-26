@@ -28,3 +28,15 @@ if(WIN32)
         iphlpapi
     )
 endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(netscope_export_tests
+        tests/export_test.cpp
+        src/export.cpp
+    )
+    target_include_directories(netscope_export_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    add_test(NAME discovery_export COMMAND netscope_export_tests)
+endif()
