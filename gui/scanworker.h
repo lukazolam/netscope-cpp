@@ -3,6 +3,7 @@
 
 #include <QThread>
 
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,8 @@ public:
     );
 
     const std::vector<PortScanResult>& results() const;
+    void requestStop();
+    bool wasStopped() const;
 
 signals:
     void progressUpdated(int percentage);
@@ -34,4 +37,5 @@ private:
     AppSettings settings_;
 
     std::vector<PortScanResult> results_;
+    std::atomic<bool> stopRequested_{false};
 };

@@ -377,7 +377,8 @@ std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
     const std::vector<int>& ports,
     const AppSettings& settings,
-    const std::function<void(std::size_t, std::size_t)>& onProgress
+    const std::function<void(std::size_t, std::size_t)>& onProgress,
+    const std::function<bool()>& shouldStop
 ) {
     if (ports.empty()) {
         return {};
@@ -406,11 +407,13 @@ std::vector<PortScanResult> scanTCPPorts(
         workers.emplace_back([&]() {
             while (true) {
                 std::size_t index = nextIndex.fetch_add(1);
-
                 if (index >= ports.size()) {
                     break;
                 }
-
+                // Stop before starting another TCP connection
+                if (shouldStop && shouldStop()) {
+                    break;
+                }
                 int port = ports[index];
 
                 PortStatus status = scanTCPPort(ip, port, settings);
@@ -439,6 +442,18 @@ std::vector<PortScanResult> scanTCPPorts(
     for (std::thread& worker : workers) {
         worker.join();
     }
+
+    // Remove entries that were never scanned
+    results.erase(
+        std::remove_if(
+            results.begin(),
+            results.end(),
+            [](const PortScanResult& result) {
+                return result.port == 0;
+            }
+        ),
+        results.end()
+    );
 
     return results;
 }

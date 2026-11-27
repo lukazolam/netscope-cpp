@@ -45,7 +45,10 @@ std::vector<PortScanResult> scanTCPPorts(
     const std::string& ip,
     const std::vector<int>& ports,
     const AppSettings& settings,
-    const std::function<void(std::size_t, std::size_t)>& onProgress = {}
+    const std::function<void(
+        std::size_t, std::size_t
+    )>& onProgress = {},
+    const std::function<bool()>& shouldStop = {}
 );
 
 std::vector<std::string> generateHostIPs(

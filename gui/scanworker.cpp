@@ -20,11 +20,23 @@ ScanWorker::results() const {
     return results_;
 }
 
+void ScanWorker::requestStop() {
+    stopRequested_.store(true);
+}
+
+bool ScanWorker::wasStopped() const {
+    return stopRequested_.load() &&
+           results_.size() < ports_.size();
+}
+
+
 void ScanWorker::run() {
     results_ = scanTCPPorts(
         ip_,
         ports_,
         settings_,
+
+        // Progress callback
         [this](std::size_t completed, std::size_t total) {
             if (total == 0) {
                 return;
@@ -35,6 +47,12 @@ void ScanWorker::run() {
             );
 
             emit progressUpdated(percentage);
+        },
+
+        // Cancellation callback
+        [this]() {
+            return stopRequested_.load();
         }
     );
 }
+
