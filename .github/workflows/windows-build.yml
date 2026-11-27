@@ -12,27 +12,80 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # 1. Download repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure CMake
-        run: cmake -S . -B build -A x64
+      # 2. Install Qt 6 for MSVC 2022 x64
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: 'win64_msvc2022_64'
+          cache: true
 
+      # 3. Configure CMake with GUI enabled
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build -A x64
+          -DNETSCOPE_BUILD_GUI=ON
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      # 4. Compile CLI and GUI
       - name: Build NetScope
         run: cmake --build build --config Release
 
-      - name: Windows startup smoke test
+      # 5. Verify the CLI starts successfully
+      - name: Windows CLI startup smoke test
         shell: pwsh
         run: |
           "0" | & ".\build\Release\netscope.exe"
 
           if ($LASTEXITCODE -ne 0) {
-            throw "NetScope exited with code $LASTEXITCODE"
+            throw "NetScope CLI exited with code $LASTEXITCODE"
           }
 
-      - name: Upload Windows executable
+      # 6. Package the Qt GUI and runtime dependencies
+      - name: Package GUI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            -Path "dist\NetScope-GUI" | Out-Null
+
+          Copy-Item `
+            "build\Release\netscope-gui.exe" `
+            "dist\NetScope-GUI\"
+
+          $deployTool = Join-Path $env:QT_ROOT_DIR `
+            "bin\windeployqt.exe"
+
+          & $deployTool `
+            --release `
+            --no-translations `
+            --dir "dist\NetScope-GUI" `
+            "dist\NetScope-GUI\netscope-gui.exe"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Qt dependency deployment failed"
+          }
+
+          if (-not (Test-Path `
+            "dist\NetScope-GUI\platforms\qwindows.dll")) {
+            throw "Qt Windows platform plugin is missing"
+          }
+
+      # 7. Upload CLI executable
+      - name: Upload Windows CLI
         uses: actions/upload-artifact@v4
         with:
-          name: NetScope-Windows-x64
+          name: NetScope-Windows-CLI-x64
           path: build/Release/netscope.exe
+          if-no-files-found: error
+
+      # 8. Upload GUI and its runtime files
+      - name: Upload Windows GUI
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetScope-Windows-GUI-x64
+          path: dist/NetScope-GUI/
           if-no-files-found: error
