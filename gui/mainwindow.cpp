@@ -12,6 +12,7 @@
 #include <QFrame>
 
 #include "portscannerpage.h"
+#include "overviewpage.h"
 
 // Temporary page for features not yet implemented
 static QWidget* createPlaceholderPage(
@@ -77,10 +78,7 @@ void MainWindow::setupInterface() {
     // Page container
     pages_ = new QStackedWidget();
 
-    pages_->addWidget(createPlaceholderPage(
-        "Overview",
-        "Your local network information will appear here."
-    ));
+    pages_->addWidget(new OverviewPage());
 
     pages_->addWidget(new PortScannerPage(settings_));
 

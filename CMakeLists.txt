@@ -53,6 +53,9 @@ if(NETSCOPE_BUILD_GUI)
         gui/mainwindow.cpp
         gui/mainwindow.h
 
+        gui/overviewpage.cpp
+        gui/overviewpage.h
+
         gui/portscannerpage.cpp
         gui/portscannerpage.h
 
