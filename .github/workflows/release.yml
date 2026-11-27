@@ -1,0 +1,181 @@
+
+name: NetScope Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build -A x64
+          -DNETSCOPE_BUILD_GUI=ON
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Verify CLI
+        shell: pwsh
+        run: |
+          "0" | & ".\build\Release\netscope.exe"
+          if ($LASTEXITCODE -ne 0) {
+            throw "CLI smoke test failed"
+          }
+
+      - name: Deploy Qt libraries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            -Path "dist\NetScope-GUI" | Out-Null
+
+          Copy-Item "build\Release\netscope-gui.exe" `
+            "dist\NetScope-GUI\"
+
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
+            --release --no-translations `
+            --dir "dist\NetScope-GUI" `
+            "dist\NetScope-GUI\netscope-gui.exe"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "windeployqt failed"
+          }
+
+          if (-not (Test-Path "dist\NetScope-GUI\platforms\qwindows.dll")) {
+            throw "Missing Qt Windows platform plugin"
+          }
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            -Path "release-assets" | Out-Null
+
+          $tag = $env:GITHUB_REF_NAME
+
+          Compress-Archive `
+            -Path "dist\NetScope-GUI\*" `
+            -DestinationPath "release-assets\NetScope-$tag-Windows-x64.zip"
+
+          Compress-Archive `
+            -Path "build\Release\netscope.exe" `
+            -DestinationPath "release-assets\NetScope-$tag-Windows-x64-CLI.zip"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Create Windows installer
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+          & $compiler "/DAppVersion=$version" "installer\netscope.iss"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installer compilation failed"
+          }
+
+          Copy-Item "dist\installer\*.exe" "release-assets\"
+
+      - name: Upload Windows release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: release-assets/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS Apple Silicon
+    runs-on: macos-15-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: clang_64
+          cache: true
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -DNETSCOPE_BUILD_GUI=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Deploy Qt frameworks
+        shell: bash
+        run: |
+          "$QT_ROOT_DIR/bin/macdeployqt" \
+            build/netscope-gui.app \
+            -always-overwrite
+
+      - name: Create macOS release archives
+        shell: bash
+        run: |
+          mkdir -p release-assets
+
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/netscope-gui.app \
+            "release-assets/NetScope-${GITHUB_REF_NAME}-macOS-arm64.zip"
+
+          ditto -c -k --keepParent \
+            build/netscope \
+            "release-assets/NetScope-${GITHUB_REF_NAME}-macOS-arm64-CLI.zip"
+
+      - name: Upload macOS release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

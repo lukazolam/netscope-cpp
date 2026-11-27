@@ -68,6 +68,14 @@ if(NETSCOPE_BUILD_GUI)
     gui/discoveryworker.cpp
     gui/discoveryworker.h
     )
+    
+    if(APPLE)
+        set_target_properties(netscope-gui PROPERTIES
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_BUNDLE_NAME "NetScope"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "com.netscope.desktop"
+        )
+    endif()
 
     set_target_properties(netscope-gui PROPERTIES
         AUTOMOC ON
