@@ -404,6 +404,10 @@ void DiscoveryPage::startDiscovery() {
 
             worker_ = nullptr;
             worker->deleteLater();
+
+            if (pendingDefaultsRefresh_) {
+                refreshDiscoveryDefaults();
+            }
         }
     );
 
@@ -718,4 +722,19 @@ void DiscoveryPage::exportResults(bool json) {
             .arg(path)
     );
 }
+
+void DiscoveryPage::refreshDiscoveryDefaults() {
+    if (worker_) {
+        pendingDefaultsRefresh_ = true;
+        return;
+    }
+
+    pendingDefaultsRefresh_ = false;
+
+    icmpCheck_->setChecked(settings_.enableICMP);
+    arpCheck_->setChecked(settings_.enableARP);
+    tcpCheck_->setChecked(settings_.enableTCP);
+}
+
+
 

@@ -25,6 +25,7 @@ public:
     );
 
     ~DiscoveryPage() override;
+    void refreshDiscoveryDefaults();
 
 private:
     void startDiscovery();
@@ -40,7 +41,7 @@ private:
     void rebuildResultsTable();
     void exportResults(bool json);
 
-    AppSettings settings_;
+    const AppSettings& settings_;
 
     QLineEdit* ipInput_ = nullptr;
     QSpinBox* prefixInput_ = nullptr;
@@ -64,4 +65,5 @@ private:
     QPointer<DiscoveryWorker> worker_;
 
     std::vector<DiscoveredHost> hosts_;
+    bool pendingDefaultsRefresh_ = false;
 };

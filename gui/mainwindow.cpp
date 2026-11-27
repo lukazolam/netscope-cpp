@@ -10,11 +10,74 @@
 #include <QStackedWidget>
 #include <QButtonGroup>
 #include <QFrame>
+#include <QSettings>
+#include <QtGlobal>
 
 #include "portscannerpage.h"
 #include "overviewpage.h"
 #include "discoverypage.h"
 #include "subnetcalculatorpage.h"
+#include "settingspage.h"
+
+namespace {
+
+AppSettings loadSavedSettings() {
+    AppSettings settings{};
+
+    QSettings storage("NetScope", "NetScope");
+
+    settings.maxThreads = static_cast<unsigned int>(
+        qBound(
+            1,
+            storage.value(
+                "scanner/maxThreads",
+                static_cast<int>(settings.maxThreads)
+            ).toInt(),
+            256
+        )
+    );
+
+    settings.tcpTimeoutMs = static_cast<unsigned int>(
+        qBound(
+            100,
+            storage.value(
+                "scanner/tcpTimeoutMs",
+                static_cast<int>(settings.tcpTimeoutMs)
+            ).toInt(),
+            10000
+        )
+    );
+
+    settings.icmpTimeoutMs = static_cast<unsigned int>(
+        qBound(
+            100,
+            storage.value(
+                "scanner/icmpTimeoutMs",
+                static_cast<int>(settings.icmpTimeoutMs)
+            ).toInt(),
+            10000
+        )
+    );
+
+    settings.enableICMP = storage.value(
+        "discovery/enableICMP",
+        settings.enableICMP
+    ).toBool();
+
+    settings.enableARP = storage.value(
+        "discovery/enableARP",
+        settings.enableARP
+    ).toBool();
+
+    settings.enableTCP = storage.value(
+        "discovery/enableTCP",
+        settings.enableTCP
+    ).toBool();
+
+    return settings;
+}
+
+} // namespace
 
 // Temporary page for features not yet implemented
 static QWidget* createPlaceholderPage(
@@ -42,7 +105,8 @@ static QWidget* createPlaceholderPage(
 }
 
 MainWindow::MainWindow(QWidget* parent)
-    : QMainWindow(parent) {
+    : QMainWindow(parent),
+      settings_(loadSavedSettings()) {
 
     setWindowTitle("NetScope");
     resize(1100, 720);
@@ -84,14 +148,19 @@ void MainWindow::setupInterface() {
 
     pages_->addWidget(new PortScannerPage(settings_));
 
-    pages_->addWidget(new DiscoveryPage(settings_));
+    auto* discoveryPage = new DiscoveryPage(settings_);
+    pages_->addWidget(discoveryPage);
 
     pages_->addWidget(new SubnetCalculatorPage());
 
-    pages_->addWidget(createPlaceholderPage(
-        "Settings",
-        "Configure scanner threads, timeouts and discovery methods."
-    ));
+    auto* settingsPage = new SettingsPage(
+        settings_,
+        [discoveryPage]() {
+            discoveryPage->refreshDiscoveryDefaults();
+        }
+    );
+
+    pages_->addWidget(settingsPage);
 
     // Navigation buttons
     auto* navigationGroup = new QButtonGroup(this);

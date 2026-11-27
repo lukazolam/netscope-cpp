@@ -37,7 +37,7 @@ private:
     void setScanning(bool scanning);
 
     // Scanner configuration
-    AppSettings settings_;
+    const AppSettings& settings_;
 
     // Input controls
     QLineEdit* ipInput_ = nullptr;
