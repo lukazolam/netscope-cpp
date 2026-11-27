@@ -14,6 +14,7 @@
 #include "portscannerpage.h"
 #include "overviewpage.h"
 #include "discoverypage.h"
+#include "subnetcalculatorpage.h"
 
 // Temporary page for features not yet implemented
 static QWidget* createPlaceholderPage(
@@ -85,10 +86,7 @@ void MainWindow::setupInterface() {
 
     pages_->addWidget(new DiscoveryPage(settings_));
 
-    pages_->addWidget(createPlaceholderPage(
-        "Subnet Calculator",
-        "Calculate IPv4 networks, masks and address ranges."
-    ));
+    pages_->addWidget(new SubnetCalculatorPage());
 
     pages_->addWidget(createPlaceholderPage(
         "Settings",
