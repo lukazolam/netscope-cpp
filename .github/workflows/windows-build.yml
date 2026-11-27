@@ -74,6 +74,31 @@ jobs:
             throw "Qt Windows platform plugin is missing"
           }
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $version = "0.10.4"
+
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+          & $compiler "/DAppVersion=$version" "installer\netscope.iss"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compilation failed"
+          }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetScope-Windows-Installer-x64
+          path: dist/installer/*.exe
+          if-no-files-found: error
+
+          
       # 7. Upload CLI executable
       - name: Upload Windows CLI
         uses: actions/upload-artifact@v4
