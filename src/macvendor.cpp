@@ -1,10 +1,12 @@
 
 #include "macvendor.h"
+#include "macvendor_generated.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iterator>
 #include <string>
-#include <unordered_map>
 
 namespace {
 
@@ -15,15 +17,35 @@ int hexDigit(unsigned char c) {
     return -1;
 }
 
+template <std::size_t N>
+const char* findVendor(
+    const netscope_vendor_db::Entry (&entries)[N],
+    std::uint64_t prefix
+) {
+    auto it = std::lower_bound(
+        std::begin(entries),
+        std::end(entries),
+        prefix,
+        [](const netscope_vendor_db::Entry& entry,
+           std::uint64_t value) {
+            return entry.prefix < value;
+        }
+    );
+
+    if (it != std::end(entries) && it->prefix == prefix) {
+        return it->vendor;
+    }
+
+    return nullptr;
+}
+
 } // namespace
 
 std::string lookupMACVendor(const std::string& mac) {
-    std::array<unsigned char, 6> bytes{};
-
     std::string digits;
     digits.reserve(12);
 
-    // Remove common MAC address separators
+    // Normalize common MAC address formats.
     for (unsigned char ch : mac) {
         if (ch == ':' || ch == '-') {
             continue;
@@ -40,68 +62,56 @@ std::string lookupMACVendor(const std::string& mac) {
         return "Unknown";
     }
 
-    // Convert pairs of hex digits into six bytes
+    std::array<unsigned char, 6> bytes{};
+
+    std::uint64_t address = 0;
+
     for (std::size_t i = 0; i < bytes.size(); ++i) {
-        int upper = hexDigit(digits[i * 2]);
-        int lower = hexDigit(digits[i * 2 + 1]);
+        const int high = hexDigit(digits[i * 2]);
+        const int low = hexDigit(digits[i * 2 + 1]);
 
         bytes[i] = static_cast<unsigned char>(
-            (upper << 4) | lower
+            (high << 4) | low
         );
+
+        address = (address << 8) | bytes[i];
     }
 
-    // Group or multicast address
+    // Multicast/group MAC addresses aren't device OUIs.
     if ((bytes[0] & 1u) != 0) {
         return "Multicast";
     }
 
-    // Locally administered address
+    // Randomized or locally administered address.
     if ((bytes[0] & 2u) != 0) {
         return "Private / locally administered";
     }
 
-    // Construct the 24-bit OUI
-    std::uint32_t oui =
-        (static_cast<std::uint32_t>(bytes[0]) << 16) |
-        (static_cast<std::uint32_t>(bytes[1]) << 8) |
-        static_cast<std::uint32_t>(bytes[2]);
+    // Search most-specific assignments first:
+    // MA-S: first 36 bits
+    // MA-M: first 28 bits
+    // MA-L: first 24 bits
 
-    // Starter manufacturer database
-    static const std::unordered_map<
-        std::uint32_t, const char*
-    > known = {
-        {0xB827EBu, "Raspberry Pi"},
-        {0xDCA632u, "Raspberry Pi"},
-        {0xE45F01u, "Raspberry Pi"},
-        {0x28CDC1u, "Raspberry Pi"},
-        {0x080027u, "VirtualBox"},
-        {0x000C29u, "VMware"},
-        {0x005056u, "VMware"},
-        {0x00155Du, "Microsoft Hyper-V"},
-        {0x00163Eu, "Xen"},
-        {0x00156Du, "Ubiquiti"},
-        {0x246511u, "AVM"},
-        {0x00040Eu, "AVM"},
-        {0x000C42u, "MikroTik"},
-        {0x50C7BFu, "TP-Link"},
-        {0x00095Bu, "Netgear"},
-        {0x001132u, "Synology"},
-        {0x00089Bu, "QNAP"},
-        {0x000A95u, "Apple"},
-        {0x001B63u, "Apple"},
-        {0x001D25u, "Samsung"},
-        {0x001422u, "Dell"},
-        {0x001F29u, "HP"},
-        {0x001B21u, "Intel"},
-        {0x00000Cu, "Cisco"},
-        {0x000E58u, "Sonos"}
-    };
-
-    auto it = known.find(oui);
-
-    if (it == known.end()) {
-        return "Unknown";
+    if (const char* vendor = findVendor(
+        netscope_vendor_db::maS,
+        address >> 12
+    )) {
+        return vendor;
     }
 
-    return it->second;
+    if (const char* vendor = findVendor(
+        netscope_vendor_db::maM,
+        address >> 20
+    )) {
+        return vendor;
+    }
+
+    if (const char* vendor = findVendor(
+        netscope_vendor_db::maL,
+        address >> 24
+    )) {
+        return vendor;
+    }
+
+    return "Unknown";
 }
