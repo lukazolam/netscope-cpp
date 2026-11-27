@@ -5,6 +5,7 @@
 #include <QPointer>
 #include <string>
 #include <vector>
+#include <functional>
 
 #include "discoveryworker.h"
 #include "settings.h"
@@ -26,6 +27,13 @@ public:
 
     ~DiscoveryPage() override;
     void refreshDiscoveryDefaults();
+
+    void setShowMapCallback(
+        std::function<void(
+            const std::vector<DiscoveredHost>&,
+            const QString&
+        )> callback
+    );
 
 private:
     void startDiscovery();
@@ -66,4 +74,10 @@ private:
 
     std::vector<DiscoveredHost> hosts_;
     bool pendingDefaultsRefresh_ = false;
+    QPushButton* showMapButton_ = nullptr;
+
+    std::function<void(
+        const std::vector<DiscoveredHost>&,
+        const QString&
+    )> showMapCallback_;
 };

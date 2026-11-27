@@ -81,7 +81,7 @@ jobs:
       - name: Build Windows installer
         shell: pwsh
         run: |
-          $version = "0.10.4"
+          $version = "0.12.0"
 
           $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 

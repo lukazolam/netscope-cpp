@@ -986,7 +986,7 @@ int main() {
     // Define variables
     std::string appName = "NetScope";
     std::string appDescription = "Network Toolkit";
-    std::string appVersion = "0.10.4";
+    std::string appVersion = "0.11.1";
     bool running = true;
     int choice;
     AppSettings settings;

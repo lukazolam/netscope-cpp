@@ -107,7 +107,7 @@ jobs:
 
   macos:
     name: macOS Apple Silicon
-    runs-on: macos-15-arm64
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4

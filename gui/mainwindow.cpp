@@ -18,6 +18,7 @@
 #include "discoverypage.h"
 #include "subnetcalculatorpage.h"
 #include "settingspage.h"
+#include "networkmappage.h"
 
 namespace {
 
@@ -153,6 +154,9 @@ void MainWindow::setupInterface() {
 
     pages_->addWidget(new SubnetCalculatorPage());
 
+    auto* mapPage = new NetworkMapPage();
+    pages_->addWidget(mapPage);
+
     auto* settingsPage = new SettingsPage(
         settings_,
         [discoveryPage]() {
@@ -171,6 +175,7 @@ void MainWindow::setupInterface() {
         "Port Scanner",
         "Network Discovery",
         "Subnet Calculator",
+        "Network Map",
         "Settings"
     };
 
@@ -192,6 +197,24 @@ void MainWindow::setupInterface() {
             }
         );
     }
+
+    discoveryPage->setShowMapCallback(
+        [this, mapPage, navigationGroup](
+            const std::vector<DiscoveredHost>& hosts,
+            const QString& cidr
+        ) {
+            // Replace the current map with discovery results.
+            mapPage->showDiscoveredHosts(hosts, cidr);
+
+            // Navigate to Network Map.
+            pages_->setCurrentWidget(mapPage);
+
+            // Update the sidebar selection.
+            if (auto* button = navigationGroup->button(4)) {
+                button->setChecked(true);
+            }
+        }
+    );
 
     sidebarLayout->addStretch();
 

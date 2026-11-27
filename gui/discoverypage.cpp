@@ -27,6 +27,7 @@
 #include <QByteArray>
 #include <QTextStream>
 #include <string>
+#include <utility>
 
 #include "network.h"
 #include "macvendor.h"
@@ -146,7 +147,9 @@ DiscoveryPage::DiscoveryPage(
 
     exportCsvButton_ = new QPushButton("Export CSV");
     exportJsonButton_ = new QPushButton("Export JSON");
-
+    showMapButton_ = new QPushButton("Show in Network Map");
+    
+    showMapButton_->setEnabled(false);
     exportCsvButton_->setEnabled(false);
     exportJsonButton_->setEnabled(false);
 
@@ -155,8 +158,36 @@ DiscoveryPage::DiscoveryPage(
     buttons->addStretch();
     buttons->addWidget(exportCsvButton_);
     buttons->addWidget(exportJsonButton_);
+    buttons->addWidget(showMapButton_);
 
     layout->addLayout(buttons);
+
+    connect(
+        showMapButton_,
+        &QPushButton::clicked,
+        this,
+        [this]() {
+            if (hosts_.empty() || !showMapCallback_) {
+                return;
+            }
+
+            const std::string ip =
+                ipInput_->text().trimmed().toStdString();
+
+            const int prefix = prefixInput_->value();
+
+            const SubnetInfo subnet =
+                calculateSubnet(ip, prefix);
+
+            const QString cidr =
+                QString::fromStdString(
+                    subnet.networkAddress
+                )
+                + "/" + QString::number(prefix);
+
+            showMapCallback_(hosts_, cidr);
+        }
+    );
 
     // Progress
     progressBar_ = new QProgressBar();
@@ -268,6 +299,9 @@ void DiscoveryPage::setScanning(bool scanning) {
     );
 
     exportJsonButton_->setEnabled(
+        !scanning && !hosts_.empty()
+    );
+    showMapButton_->setEnabled(
         !scanning && !hosts_.empty()
     );
 }
@@ -736,5 +770,11 @@ void DiscoveryPage::refreshDiscoveryDefaults() {
     tcpCheck_->setChecked(settings_.enableTCP);
 }
 
-
-
+void DiscoveryPage::setShowMapCallback(
+    std::function<void(
+        const std::vector<DiscoveredHost>&,
+        const QString&
+    )> callback
+) {
+    showMapCallback_ = std::move(callback);
+}

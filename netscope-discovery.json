@@ -1,0 +1,95 @@
+{
+    "application": "NetScope",
+    "deviceCount": 8,
+    "devices": [
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "",
+            "icmpResponded": true,
+            "ipAddress": "192.168.0.1",
+            "macAddress": "dc:73:6:12:81:8e",
+            "responding": true,
+            "tcpResponded": false,
+            "vendor": "Unknown"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "",
+            "icmpResponded": true,
+            "ipAddress": "192.168.0.38",
+            "macAddress": "76:80:a2:5f:f0:c6",
+            "responding": true,
+            "tcpResponded": false,
+            "vendor": "Private / locally administered"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "iphone.lan",
+            "icmpResponded": false,
+            "ipAddress": "192.168.0.48",
+            "macAddress": "9a:3c:3a:58:c2:be",
+            "responding": false,
+            "tcpResponded": false,
+            "vendor": "Private / locally administered"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "",
+            "icmpResponded": true,
+            "ipAddress": "192.168.0.88",
+            "macAddress": "4:f7:78:67:6b:9b",
+            "responding": true,
+            "tcpResponded": false,
+            "vendor": "Unknown"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "lgwebostv.lan",
+            "icmpResponded": true,
+            "ipAddress": "192.168.0.192",
+            "macAddress": "44:27:45:80:1a:5c",
+            "responding": true,
+            "tcpResponded": false,
+            "vendor": "Unknown"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "",
+            "icmpResponded": false,
+            "ipAddress": "192.168.0.193",
+            "macAddress": "ca:7a:fa:51:be:da",
+            "responding": false,
+            "tcpResponded": false,
+            "vendor": "Private / locally administered"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "",
+            "icmpResponded": true,
+            "ipAddress": "192.168.0.200",
+            "macAddress": "ae:32:bc:91:d9:e0",
+            "responding": true,
+            "tcpResponded": false,
+            "vendor": "Private / locally administered"
+        },
+        {
+            "arpConfirmed": false,
+            "arpFound": true,
+            "hostname": "pi.hole",
+            "icmpResponded": true,
+            "ipAddress": "192.168.0.201",
+            "macAddress": "98:fe:54:23:18:10",
+            "responding": true,
+            "tcpResponded": false,
+            "vendor": "Unknown"
+        }
+    ],
+    "formatVersion": 1
+}

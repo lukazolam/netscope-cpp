@@ -1,0 +1,9 @@
+IP Address,Hostname,MAC Address,Vendor,Methods,Responding,ICMP,ARP Found,ARP Confirmed,TCP
+"192.168.0.1","","dc:73:6:12:81:8e","Unknown","ICMP, ARP cached","Yes","Yes","Yes","No","No"
+"192.168.0.38","","76:80:a2:5f:f0:c6","Private / locally administered","ICMP, ARP cached","Yes","Yes","Yes","No","No"
+"192.168.0.48","iphone.lan","9a:3c:3a:58:c2:be","Private / locally administered","ARP cached","No","No","Yes","No","No"
+"192.168.0.88","","4:f7:78:67:6b:9b","Unknown","ICMP, ARP cached","Yes","Yes","Yes","No","No"
+"192.168.0.192","lgwebostv.lan","44:27:45:80:1a:5c","Unknown","ICMP, ARP cached","Yes","Yes","Yes","No","No"
+"192.168.0.193","","ca:7a:fa:51:be:da","Private / locally administered","ARP cached","No","No","Yes","No","No"
+"192.168.0.200","","ae:32:bc:91:d9:e0","Private / locally administered","ICMP, ARP cached","Yes","Yes","Yes","No","No"
+"192.168.0.201","pi.hole","98:fe:54:23:18:10","Unknown","ICMP, ARP cached","Yes","Yes","Yes","No","No"
