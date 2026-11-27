@@ -77,7 +77,8 @@ std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
     const AppSettings& settings,
     const std::function<void(std::size_t, std::size_t)>& onProgress = {},
-    const std::function<bool()>& shouldStop = {}
+    const std::function<bool()>& shouldStop = {},
+    const std::function<void(const DiscoveredHost&)>& onHost = {}
 );
 
 std::string resolveHostname(const std::string& ip);

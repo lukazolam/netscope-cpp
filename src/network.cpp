@@ -596,7 +596,8 @@ std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
     const AppSettings& settings,
     const std::function<void(std::size_t, std::size_t)>& onProgress,
-    const std::function<bool()>& shouldStop
+    const std::function<bool()>& shouldStop,
+    const std::function<void(const DiscoveredHost&)>& onHost
 ) {
     if (addresses.empty()) {
         return {};
@@ -633,6 +634,12 @@ std::vector<DiscoveredHost> discoverHosts(
                 results[index] = probeHost(
                     addresses[index], settings
                 );
+                // Immediately report discovered devices
+                const DiscoveredHost& host = results[index];
+
+                if ((host.responding || host.arpFound) && onHost) {
+                    onHost(host);
+                }
 
                 {
                     std::lock_guard<std::mutex> lock(

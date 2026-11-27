@@ -1,6 +1,14 @@
 
 #include "discoverypage.h"
 
+#include <QCheckBox>
+#include <QFileDialog>
+#include <QSaveFile>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonValue>
+#include <QMetaType>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,7 +24,8 @@
 #include <QFont>
 #include <QStringList>
 #include <vector>
-
+#include <QByteArray>
+#include <QTextStream>
 #include <string>
 
 #include "network.h"
@@ -63,6 +72,7 @@ DiscoveryPage::DiscoveryPage(
     : QWidget(parent),
       settings_(settings) {
 
+    qRegisterMetaType<DiscoveredHost>("DiscoveredHost");
     auto* layout = new QVBoxLayout(this);
 
     // Page heading
@@ -102,6 +112,27 @@ DiscoveryPage::DiscoveryPage(
 
     layout->addLayout(inputLayout);
 
+    // Discovery method selection
+    auto* methodLayout = new QHBoxLayout();
+
+    auto* methodLabel = new QLabel("Discovery methods:");
+
+    icmpCheck_ = new QCheckBox("ICMP");
+    arpCheck_ = new QCheckBox("ARP");
+    tcpCheck_ = new QCheckBox("TCP");
+
+    icmpCheck_->setChecked(settings_.enableICMP);
+    arpCheck_->setChecked(settings_.enableARP);
+    tcpCheck_->setChecked(settings_.enableTCP);
+
+    methodLayout->addWidget(methodLabel);
+    methodLayout->addWidget(icmpCheck_);
+    methodLayout->addWidget(arpCheck_);
+    methodLayout->addWidget(tcpCheck_);
+    methodLayout->addStretch();
+
+    layout->addLayout(methodLayout);
+
     // Action buttons
     auto* buttons = new QHBoxLayout();
 
@@ -113,8 +144,17 @@ DiscoveryPage::DiscoveryPage(
 
     stopButton_->setEnabled(false);
 
+    exportCsvButton_ = new QPushButton("Export CSV");
+    exportJsonButton_ = new QPushButton("Export JSON");
+
+    exportCsvButton_->setEnabled(false);
+    exportJsonButton_->setEnabled(false);
+
     buttons->addWidget(startButton_);
     buttons->addWidget(stopButton_);
+    buttons->addStretch();
+    buttons->addWidget(exportCsvButton_);
+    buttons->addWidget(exportJsonButton_);
 
     layout->addLayout(buttons);
 
@@ -183,6 +223,26 @@ DiscoveryPage::DiscoveryPage(
             stopDiscovery();
         }
     );
+
+    // Export completed discovery results
+    connect(
+        exportCsvButton_,
+        &QPushButton::clicked,
+        this,
+        [this]() {
+            exportResults(false);
+        }
+    );
+
+    connect(
+        exportJsonButton_,
+        &QPushButton::clicked,
+        this,
+        [this]() {
+            exportResults(true);
+        }
+    );
+
 }
 
 DiscoveryPage::~DiscoveryPage() {
@@ -198,6 +258,18 @@ void DiscoveryPage::setScanning(bool scanning) {
 
     ipInput_->setEnabled(!scanning);
     prefixInput_->setEnabled(!scanning);
+
+    icmpCheck_->setEnabled(!scanning);
+    arpCheck_->setEnabled(!scanning);
+    tcpCheck_->setEnabled(!scanning);
+
+    exportCsvButton_->setEnabled(
+        !scanning && !hosts_.empty()
+    );
+
+    exportJsonButton_->setEnabled(
+        !scanning && !hosts_.empty()
+    );
 }
 
 void DiscoveryPage::startDiscovery() {
@@ -219,6 +291,26 @@ void DiscoveryPage::startDiscovery() {
 
     int prefix = prefixInput_->value();
 
+    if (!icmpCheck_->isChecked() &&
+        !arpCheck_->isChecked() &&
+        !tcpCheck_->isChecked()) {
+
+        QMessageBox::warning(
+            this,
+            "No Discovery Methods",
+            "Enable at least one discovery method."
+        );
+
+        return;
+    }
+
+    // Copy settings for this individual scan
+    AppSettings scanSettings = settings_;
+
+    scanSettings.enableICMP = icmpCheck_->isChecked();
+    scanSettings.enableARP = arpCheck_->isChecked();
+    scanSettings.enableTCP = tcpCheck_->isChecked();
+
     // Reuse the existing subnet address generator
     std::vector<std::string> addresses =
         generateHostIPs(ip, prefix);
@@ -235,6 +327,8 @@ void DiscoveryPage::startDiscovery() {
     int total = static_cast<int>(addresses.size());
 
     // Prepare the interface
+    hosts_.clear();
+
     setScanning(true);
     progressBar_->setValue(0);
     results_->setRowCount(0);
@@ -246,7 +340,7 @@ void DiscoveryPage::startDiscovery() {
     statusLabel_->setText("Starting discovery...");
 
     auto* worker = new DiscoveryWorker(
-        ip, prefix, settings_, this
+        ip, prefix, scanSettings, this
     );
 
     worker_ = worker;
@@ -268,6 +362,36 @@ void DiscoveryPage::startDiscovery() {
         this,
         [this](const QString& message) {
             statusLabel_->setText(message);
+        }
+    );
+
+    // Display discovered devices as they are found
+    connect(
+        worker,
+        &DiscoveryWorker::hostFound,
+        this,
+        [this, worker](DiscoveredHost host) {
+        if (worker_ != worker) {
+            return;
+        }
+
+        hosts_.push_back(host);
+        appendHost(host);
+
+        countLabel_->setText(
+            QString("Found: %1 device(s)")
+                .arg(static_cast<int>(hosts_.size()))
+        );
+        }
+    );
+
+    // Update hostnames as reverse DNS completes
+    connect(
+        worker,
+        &DiscoveryWorker::hostnameResolved,
+        this,
+        [this](const QString& ip, const QString& hostname) {
+            updateHostname(ip, hostname);
         }
     );
 
@@ -299,66 +423,14 @@ void DiscoveryPage::stopDiscovery() {
     );
 }
 
+
 void DiscoveryPage::finishDiscovery(
     DiscoveryWorker* worker
 ) {
-    results_->setSortingEnabled(false);
-    results_->setRowCount(0);
+    // Use the authoritative final results
+    hosts_ = worker->results();
 
-    const auto& hosts = worker->results();
-
-    for (const DiscoveredHost& host : hosts) {
-        int row = results_->rowCount();
-        results_->insertRow(row);
-
-        results_->setItem(
-            row, 0,
-            new QTableWidgetItem(
-                displayText(host.ipAddress)
-            )
-        );
-
-        results_->setItem(
-            row, 1,
-            new QTableWidgetItem(
-                displayText(host.hostname)
-            )
-        );
-
-        results_->setItem(
-            row, 2,
-            new QTableWidgetItem(
-                displayText(host.macAddress)
-            )
-        );
-
-        results_->setItem(
-            row, 3,
-            new QTableWidgetItem(
-                QString::fromStdString(
-                    lookupMACVendor(host.macAddress)
-                )
-            )
-        );
-
-        results_->setItem(
-            row, 4,
-            new QTableWidgetItem(
-                discoveryMethods(host)
-            )
-        );
-
-        results_->setItem(
-            row, 5,
-            new QTableWidgetItem(
-                host.responding
-                    ? "Yes"
-                    : "ARP cache only"
-            )
-        );
-    }
-
-    results_->setSortingEnabled(true);
+    rebuildResultsTable();
 
     std::size_t checked =
         worker->addressesChecked();
@@ -370,7 +442,7 @@ void DiscoveryPage::finishDiscovery(
         QString("Checked: %1/%2 | Discovered: %3")
             .arg(static_cast<int>(checked))
             .arg(static_cast<int>(total))
-            .arg(static_cast<int>(hosts.size()))
+            .arg(static_cast<int>(hosts_.size()))
     );
 
     if (worker->wasStopped()) {
@@ -382,3 +454,268 @@ void DiscoveryPage::finishDiscovery(
 
     setScanning(false);
 }
+
+void DiscoveryPage::appendHost(
+    const DiscoveredHost& host
+) {
+    // Temporarily disable sorting during insertion
+    bool sorting = results_->isSortingEnabled();
+    results_->setSortingEnabled(false);
+
+    int row = results_->rowCount();
+    results_->insertRow(row);
+
+    results_->setItem(
+        row, 0,
+        new QTableWidgetItem(displayText(host.ipAddress))
+    );
+
+    results_->setItem(
+        row, 1,
+        new QTableWidgetItem(displayText(host.hostname))
+    );
+
+    results_->setItem(
+        row, 2,
+        new QTableWidgetItem(displayText(host.macAddress))
+    );
+
+    results_->setItem(
+        row, 3,
+        new QTableWidgetItem(
+            QString::fromStdString(
+                lookupMACVendor(host.macAddress)
+            )
+        )
+    );
+
+    results_->setItem(
+        row, 4,
+        new QTableWidgetItem(discoveryMethods(host))
+    );
+
+    results_->setItem(
+        row, 5,
+        new QTableWidgetItem(
+            host.responding ? "Yes" : "ARP cache only"
+        )
+    );
+
+    results_->setSortingEnabled(sorting);
+}
+
+
+void DiscoveryPage::updateHostname(
+    const QString& ip,
+    const QString& hostname
+) {
+    // Update the stored result used for export
+    for (auto& host : hosts_) {
+        if (QString::fromStdString(host.ipAddress) == ip) {
+            host.hostname = hostname.toStdString();
+            break;
+        }
+    }
+
+    // Find the matching row even if the table is sorted
+    for (int row = 0; row < results_->rowCount(); ++row) {
+        auto* ipItem = results_->item(row, 0);
+
+        if (!ipItem || ipItem->text() != ip) {
+            continue;
+        }
+
+        auto* hostnameItem = results_->item(row, 1);
+
+        if (hostnameItem) {
+            hostnameItem->setText(
+                hostname.isEmpty() ? "-" : hostname
+            );
+        }
+
+        break;
+    }
+}
+
+void DiscoveryPage::rebuildResultsTable() {
+    results_->setSortingEnabled(false);
+    results_->setRowCount(0);
+
+    for (const DiscoveredHost& host : hosts_) {
+        appendHost(host);
+    }
+
+    results_->setSortingEnabled(true);
+}
+
+namespace {
+
+// Escape a field for CSV, including spreadsheet formula safety
+QString csvField(QString value) {
+    QString trimmed = value.trimmed();
+
+    if (!trimmed.isEmpty()) {
+        const QChar first = trimmed.at(0);
+
+        // Prevent network-derived fields from being
+        // interpreted as spreadsheet formulas.
+        if (first == '=' || first == '+' ||
+            first == '-' || first == '@') {
+            value.prepend('\'');
+        }
+    }
+
+    value.replace("\"", "\"\"");
+
+    return "\"" + value + "\"";
+}
+
+} // namespace
+
+
+void DiscoveryPage::exportResults(bool json) {
+    if (hosts_.empty()) {
+        QMessageBox::information(
+            this,
+            "Nothing to Export",
+            "There are no discovered devices to export."
+        );
+        return;
+    }
+
+    const QString extension = json ? ".json" : ".csv";
+
+    QString path = QFileDialog::getSaveFileName(
+        this,
+        json ? "Export Discovery as JSON"
+             : "Export Discovery as CSV",
+        "netscope-discovery" + extension,
+        json ? "JSON Files (*.json)"
+             : "CSV Files (*.csv)"
+    );
+
+    if (path.isEmpty()) {
+        return;
+    }
+
+    if (!path.endsWith(extension, Qt::CaseInsensitive)) {
+        path += extension;
+    }
+
+    QByteArray output;
+
+    if (json) {
+        QJsonArray devices;
+
+        for (const auto& host : hosts_) {
+            QJsonObject device;
+
+            device["ipAddress"] =
+                QString::fromStdString(host.ipAddress);
+
+            device["hostname"] =
+                QString::fromStdString(host.hostname);
+
+            device["macAddress"] =
+                QString::fromStdString(host.macAddress);
+
+            device["vendor"] =
+                QString::fromStdString(
+                    lookupMACVendor(host.macAddress)
+                );
+
+            device["responding"] = host.responding;
+            device["icmpResponded"] = host.icmpResponded;
+            device["arpFound"] = host.arpFound;
+            device["arpConfirmed"] = host.arpConfirmed;
+            device["tcpResponded"] = host.tcpResponded;
+
+            devices.append(device);
+        }
+
+        QJsonObject document;
+        document["application"] = "NetScope";
+        document["formatVersion"] = 1;
+        document["deviceCount"] =
+            static_cast<int>(hosts_.size());
+        document["devices"] = devices;
+
+        output = QJsonDocument(document).toJson(
+            QJsonDocument::Indented
+        );
+    }
+    else {
+        QString csv;
+
+        csv += "IP Address,Hostname,MAC Address,Vendor,"
+               "Methods,Responding,ICMP,ARP Found,"
+               "ARP Confirmed,TCP\n";
+
+        for (const auto& host : hosts_) {
+            QStringList fields = {
+                QString::fromStdString(host.ipAddress),
+                QString::fromStdString(host.hostname),
+                QString::fromStdString(host.macAddress),
+                QString::fromStdString(
+                    lookupMACVendor(host.macAddress)
+                ),
+                discoveryMethods(host),
+                host.responding ? "Yes" : "No",
+                host.icmpResponded ? "Yes" : "No",
+                host.arpFound ? "Yes" : "No",
+                host.arpConfirmed ? "Yes" : "No",
+                host.tcpResponded ? "Yes" : "No"
+            };
+
+            for (QString& field : fields) {
+                field = csvField(field);
+            }
+
+            csv += fields.join(',') + "\n";
+        }
+
+        output = csv.toUtf8();
+    }
+
+    // QSaveFile writes to a temporary file first and
+    // replaces the destination only on successful commit.
+    QSaveFile file(path);
+
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::critical(
+            this,
+            "Export Failed",
+            file.errorString()
+        );
+        return;
+    }
+
+    if (file.write(output) != output.size()) {
+        file.cancelWriting();
+
+        QMessageBox::critical(
+            this,
+            "Export Failed",
+            "Unable to write the complete export file."
+        );
+        return;
+    }
+
+    if (!file.commit()) {
+        QMessageBox::critical(
+            this,
+            "Export Failed",
+            file.errorString()
+        );
+        return;
+    }
+
+    QMessageBox::information(
+        this,
+        "Export Complete",
+        QString("Exported %1 devices to:\n%2")
+            .arg(static_cast<int>(hosts_.size()))
+            .arg(path)
+    );
+}
+

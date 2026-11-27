@@ -6,9 +6,11 @@
 #include <atomic>
 #include <string>
 #include <vector>
+#include <QMetaType>
 
 #include "network.h"
 #include "settings.h"
+Q_DECLARE_METATYPE(DiscoveredHost)
 
 class DiscoveryWorker : public QThread {
     Q_OBJECT
@@ -32,6 +34,15 @@ public:
 signals:
     void progressUpdated(int percentage);
     void statusUpdated(const QString& message);
+
+    // A newly detected device
+    void hostFound(DiscoveredHost host);
+
+    // Reverse DNS has supplied a hostname
+    void hostnameResolved(
+        QString ip,
+        QString hostname
+    );
 
 protected:
     void run() override;

@@ -37,8 +37,9 @@ DiscoveryWorker::results() const {
     return results_;
 }
 
+
 void DiscoveryWorker::run() {
-    // All network operations happen off the GUI thread
+    // Generate the subnet's usable IP addresses
     std::vector<std::string> addresses =
         generateHostIPs(ip_, prefix_);
 
@@ -55,7 +56,7 @@ void DiscoveryWorker::run() {
         addresses,
         settings_,
 
-        // Probe progress: first 90%
+        // Progress callback
         [this](std::size_t completed, std::size_t total) {
             checked_.store(completed);
 
@@ -66,9 +67,14 @@ void DiscoveryWorker::run() {
             emit progressUpdated(percentage);
         },
 
-        // Stop callback
+        // Cancellation callback
         [this]() {
             return stopRequested_.load();
+        },
+
+        // Newly discovered host callback
+        [this](const DiscoveredHost& host) {
+            emit hostFound(host);
         }
     );
 
@@ -77,8 +83,6 @@ void DiscoveryWorker::run() {
         return;
     }
 
-    // DNS lookups can take time, so do them here,
-    // never on the GUI thread.
     emit statusUpdated("Resolving hostnames...");
 
     const std::size_t count = results_.size();
@@ -88,13 +92,21 @@ void DiscoveryWorker::run() {
         return;
     }
 
+    // Resolve DNS without blocking the GUI thread
     for (std::size_t i = 0; i < count; ++i) {
         if (stopRequested_.load()) {
             break;
         }
 
-        results_[i].hostname =
-            resolveHostname(results_[i].ipAddress);
+        DiscoveredHost& host = results_[i];
+
+        host.hostname = resolveHostname(host.ipAddress);
+
+        // Update the corresponding GUI row
+        emit hostnameResolved(
+            QString::fromStdString(host.ipAddress),
+            QString::fromStdString(host.hostname)
+        );
 
         int percentage = 90 + static_cast<int>(
             ((i + 1) * 10) / count
@@ -103,3 +115,4 @@ void DiscoveryWorker::run() {
         emit progressUpdated(percentage);
     }
 }
+
