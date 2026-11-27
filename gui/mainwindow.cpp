@@ -13,6 +13,7 @@
 
 #include "portscannerpage.h"
 #include "overviewpage.h"
+#include "discoverypage.h"
 
 // Temporary page for features not yet implemented
 static QWidget* createPlaceholderPage(
@@ -82,10 +83,7 @@ void MainWindow::setupInterface() {
 
     pages_->addWidget(new PortScannerPage(settings_));
 
-    pages_->addWidget(createPlaceholderPage(
-        "Network Discovery",
-        "Discover hosts, MAC addresses, vendors and hostnames."
-    ));
+    pages_->addWidget(new DiscoveryPage(settings_));
 
     pages_->addWidget(createPlaceholderPage(
         "Subnet Calculator",

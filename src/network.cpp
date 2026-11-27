@@ -591,19 +591,19 @@ DiscoveredHost probeHost(
     return host;
 }
 
+
 std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
     const AppSettings& settings,
-    const std::function<void(std::size_t, std::size_t)>& onProgress
+    const std::function<void(std::size_t, std::size_t)>& onProgress,
+    const std::function<bool()>& shouldStop
 ) {
     if (addresses.empty()) {
         return {};
     }
 
-const unsigned int maxThreads = settings.maxThreads;
-
     const unsigned int threadCount = std::min(
-        maxThreads,
+        settings.maxThreads,
         static_cast<unsigned int>(addresses.size())
     );
 
@@ -616,7 +616,7 @@ const unsigned int maxThreads = settings.maxThreads;
     std::vector<std::thread> workers;
     workers.reserve(threadCount);
 
-    for (unsigned int i = 0; i < threadCount; i++) {
+    for (unsigned int i = 0; i < threadCount; ++i) {
         workers.emplace_back([&]() {
             while (true) {
                 std::size_t index = nextIndex.fetch_add(1);
@@ -625,22 +625,26 @@ const unsigned int maxThreads = settings.maxThreads;
                     break;
                 }
 
-                const std::string& ip = addresses[index];
+                // Cooperative cancellation
+                if (shouldStop && shouldStop()) {
+                    break;
+                }
 
-                // Probe the host using all supported methods
-                results[index] = probeHost(ip, settings);
-                
-                // Update discovery progress
+                results[index] = probeHost(
+                    addresses[index], settings
+                );
+
                 {
-                    std::lock_guard<std::mutex> lock(progressMutex);
+                    std::lock_guard<std::mutex> lock(
+                        progressMutex
+                    );
 
-                    completed++;
+                    ++completed;
 
                     if (onProgress) {
                         onProgress(completed, addresses.size());
                     }
                 }
-
             }
         });
     }
@@ -649,17 +653,17 @@ const unsigned int maxThreads = settings.maxThreads;
         worker.join();
     }
 
-    // Keep only responding devices
     std::vector<DiscoveredHost> discovered;
 
     for (const DiscoveredHost& host : results) {
-    if (host.responding || host.arpFound) {
-        discovered.push_back(host);
-    }
+        if (host.responding || host.arpFound) {
+            discovered.push_back(host);
+        }
     }
 
     return discovered;
 }
+
 
 std::string getMACAddress(const std::string& ip) {
     // Only accept validated IPv4 addresses

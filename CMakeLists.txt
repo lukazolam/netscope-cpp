@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(NetScope VERSION 0.10.2 LANGUAGES CXX)
+project(NetScope VERSION 0.10.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,19 +48,25 @@ if(NETSCOPE_BUILD_GUI)
     find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
 
     add_executable(netscope-gui
-        gui/main.cpp
+    gui/main.cpp
 
-        gui/mainwindow.cpp
-        gui/mainwindow.h
+    gui/mainwindow.cpp
+    gui/mainwindow.h
 
-        gui/overviewpage.cpp
-        gui/overviewpage.h
+    gui/overviewpage.cpp
+    gui/overviewpage.h
 
-        gui/portscannerpage.cpp
-        gui/portscannerpage.h
+    gui/portscannerpage.cpp
+    gui/portscannerpage.h
 
-        gui/scanworker.cpp
-        gui/scanworker.h
+    gui/discoverypage.cpp
+    gui/discoverypage.h
+
+    gui/scanworker.cpp
+    gui/scanworker.h
+
+    gui/discoveryworker.cpp
+    gui/discoveryworker.h
     )
 
     set_target_properties(netscope-gui PROPERTIES

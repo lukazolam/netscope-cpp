@@ -76,7 +76,8 @@ struct DiscoveredHost {
 std::vector<DiscoveredHost> discoverHosts(
     const std::vector<std::string>& addresses,
     const AppSettings& settings,
-    const std::function<void(std::size_t, std::size_t)>& onProgress = {}
+    const std::function<void(std::size_t, std::size_t)>& onProgress = {},
+    const std::function<bool()>& shouldStop = {}
 );
 
 std::string resolveHostname(const std::string& ip);
